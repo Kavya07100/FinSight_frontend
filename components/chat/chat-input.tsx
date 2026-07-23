@@ -6,13 +6,14 @@ import { Send } from "lucide-react"
 
 interface ChatInputProps {
   onSend?: (message: string) => void
+  disabled?: boolean
 }
 
-export function ChatInput({ onSend }: ChatInputProps) {
+export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
   const [message, setMessage] = useState("")
 
   const handleSend = () => {
-    if (message.trim()) {
+    if (message.trim() && !disabled) {
       onSend?.(message)
       setMessage("")
     }
@@ -32,12 +33,13 @@ export function ChatInput({ onSend }: ChatInputProps) {
         onChange={(e) => setMessage(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Ask anything about investing..."
-        className="flex-1 resize-none rounded-lg border border-input bg-card px-4 py-3 text-sm text-foreground placeholder-muted-foreground transition-colors focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+        disabled={disabled}
+        className="flex-1 resize-none rounded-lg border border-input bg-card px-4 py-3 text-sm text-foreground placeholder-muted-foreground transition-colors focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
         rows={2}
       />
       <Button
         onClick={handleSend}
-        disabled={!message.trim()}
+        disabled={!message.trim() || disabled}
         className="flex-shrink-0 self-end"
       >
         <Send className="h-4 w-4" />

@@ -1,6 +1,129 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/dashboard/sidebar"
 
+const AVAILABLE_CASH = 75500
+
+const MARKET_STOCKS = [
+  { name: "Reliance Industries", symbol: "RELIANCE", ticker: "RELIANCE.NS", price: 2820, change: "+1.2%" },
+  { name: "HDFC Bank", symbol: "HDFCBANK", ticker: "HDFCBANK.NS", price: 1624, change: "+0.8%" },
+  { name: "Infosys", symbol: "INFY", ticker: "INFY.NS", price: 2120, change: "-0.4%" },
+  { name: "Tata Motors", symbol: "TATAMOTORS", ticker: "TMPV.NS", price: 945, change: "+2.1%" },
+  { name: "Nifty 50 ETF", symbol: "NIFTYBEES", ticker: "NIFTYBEES.NS", price: 248, change: "+0.6%" },
+  { name: "State Bank of India", symbol: "SBIN", ticker: "SBIN.NS", price: 498, change: "-0.9%" },
+  { name: "Wipro", symbol: "WIPRO", ticker: "WIPRO.NS", price: 542, change: "+1.5%" },
+  { name: "Bajaj Finance", symbol: "BAJFINANCE", ticker: "BAJFINANCE.NS", price: 7240, change: "+0.3%" },
+] as const
+
+interface BenchmarkMetrics {
+  ticker: string
+  final_value: number
+  total_return_pct: number
+}
+
+interface SimulationMetrics {
+  final_value: number
+  total_return_pct: number
+  max_drawdown_pct: number
+  daily_values: { date: string; value: number }[]
+  benchmark: BenchmarkMetrics | null
+  outperformance_pct: number | null
+}
+
+interface SimulationResult {
+  id: string
+  user_id: string
+  mode: string
+  trades: unknown[]
+  metrics: SimulationMetrics
+  started_at: string
+  ended_at: string | null
+}
+
+const formatDate = (date: Date) => date.toISOString().slice(0, 10)
+
 export default function SimulatePage() {
+  const [userId, setUserId] = useState<string | null>(null)
+  const [selectedStock, setSelectedStock] = useState("")
+  const [action, setAction] = useState<"buy" | "sell">("buy")
+  const [quantity, setQuantity] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [result, setResult] = useState<SimulationResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const storedUserId = localStorage.getItem("finsight_user_id")
+    if (storedUserId) {
+      setUserId(storedUserId)
+    } else {
+      setError("Please complete onboarding before simulating trades.")
+    }
+  }, [])
+
+  const selectedStockInfo = MARKET_STOCKS.find((s) => s.ticker === selectedStock)
+  const currentPrice = selectedStockInfo?.price ?? 0
+  const estimatedTotal = currentPrice * quantity
+  const afterTradeCash =
+    action === "buy" ? AVAILABLE_CASH - estimatedTotal : AVAILABLE_CASH + estimatedTotal
+
+  const handleConfirmTrade = async () => {
+    if (!userId) {
+      setError("Please complete onboarding before simulating trades.")
+      return
+    }
+    if (!selectedStock || quantity <= 0) {
+      setError("Select a stock and enter a quantity greater than zero.")
+      return
+    }
+
+    setError(null)
+    setIsLoading(true)
+    setResult(null)
+
+    try {
+      const today = new Date()
+      const oneYearAgo = new Date(today)
+      oneYearAgo.setFullYear(today.getFullYear() - 1)
+      const sixMonthsAgo = new Date(today)
+      sixMonthsAgo.setMonth(today.getMonth() - 6)
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/simulate/sandbox`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tickers: [selectedStock],
+            start_date: formatDate(oneYearAgo),
+            end_date: formatDate(today),
+            starting_cash: AVAILABLE_CASH,
+            trades: [
+              {
+                ticker: selectedStock,
+                action,
+                quantity,
+                trade_date: formatDate(sixMonthsAgo),
+              },
+            ],
+            benchmark_ticker: "SPY",
+          }),
+        }
+      )
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`)
+      }
+
+      const data: SimulationResult = await res.json()
+      setResult(data)
+    } catch {
+      setError("Something went wrong while running your simulation. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="flex min-h-screen bg-[#FAF7F0]">
       <Sidebar />
@@ -17,7 +140,7 @@ export default function SimulatePage() {
           <div className="bg-[#3B5BDB] text-white rounded-2xl p-5 mb-8 flex items-center justify-between">
             <div>
               <p className="text-blue-200 text-sm">Available Virtual Cash</p>
-              <p className="text-3xl font-bold mt-1">₹75,500</p>
+              <p className="text-3xl font-bold mt-1">₹{AVAILABLE_CASH.toLocaleString()}</p>
             </div>
             <div className="text-right">
               <p className="text-blue-200 text-sm">Total Invested</p>
@@ -27,81 +150,160 @@ export default function SimulatePage() {
 
           <div className="grid grid-cols-2 gap-8">
 
-            {/* Trade Form */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-              <h2 className="font-semibold text-gray-900 mb-5">Place a Trade</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm text-gray-500 mb-1 block">Search Stock / Fund</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Reliance, HDFC, Nifty 50..."
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B5BDB] bg-[#FAF7F0]"
-                  />
-                </div>
+            {/* Trade Form + Results */}
+            <div className="space-y-6">
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h2 className="font-semibold text-gray-900 mb-5">Place a Trade</h2>
 
-                <div>
-                  <label className="text-sm text-gray-500 mb-1 block">Order Type</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button className="border-2 border-[#3B5BDB] bg-blue-50 text-[#3B5BDB] rounded-xl py-2 text-sm font-medium">
-                      BUY
-                    </button>
-                    <button className="border border-gray-200 text-gray-500 rounded-xl py-2 text-sm font-medium hover:border-red-400 hover:text-red-500">
-                      SELL
-                    </button>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm text-gray-500 mb-1 block">Search Stock / Fund</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={selectedStockInfo?.name ?? ""}
+                      placeholder="e.g. Reliance, HDFC, Nifty 50..."
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B5BDB] bg-[#FAF7F0] cursor-default"
+                    />
                   </div>
-                </div>
 
-                <div>
-                  <label className="text-sm text-gray-500 mb-1 block">Quantity</label>
-                  <input
-                    type="number"
-                    placeholder="Number of units"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B5BDB] bg-[#FAF7F0]"
-                  />
-                </div>
-
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-500">Current Price</span>
-                    <span className="font-medium text-gray-900">₹2,820</span>
+                  <div>
+                    <label className="text-sm text-gray-500 mb-1 block">Order Type</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setAction("buy")}
+                        className={
+                          action === "buy"
+                            ? "border-2 border-[#3B5BDB] bg-blue-50 text-[#3B5BDB] rounded-xl py-2 text-sm font-medium"
+                            : "border border-gray-200 text-gray-500 rounded-xl py-2 text-sm font-medium hover:border-[#3B5BDB] hover:text-[#3B5BDB]"
+                        }
+                      >
+                        BUY
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAction("sell")}
+                        className={
+                          action === "sell"
+                            ? "border-2 border-red-500 bg-red-50 text-red-600 rounded-xl py-2 text-sm font-medium"
+                            : "border border-gray-200 text-gray-500 rounded-xl py-2 text-sm font-medium hover:border-red-400 hover:text-red-500"
+                        }
+                      >
+                        SELL
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-500">Estimated Total</span>
-                    <span className="font-medium text-gray-900">₹28,200</span>
+
+                  <div>
+                    <label className="text-sm text-gray-500 mb-1 block">Quantity</label>
+                    <input
+                      type="number"
+                      value={quantity || ""}
+                      onChange={(e) => setQuantity(e.target.value === "" ? 0 : Number(e.target.value))}
+                      placeholder="Number of units"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B5BDB] bg-[#FAF7F0]"
+                    />
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">After Trade Cash</span>
-                    <span className="font-medium text-green-600">₹47,300</span>
+
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-gray-500">Current Price</span>
+                      <span className="font-medium text-gray-900">₹{currentPrice.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-gray-500">Estimated Total</span>
+                      <span className="font-medium text-gray-900">₹{estimatedTotal.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">After Trade Cash</span>
+                      <span className="font-medium text-green-600">₹{afterTradeCash.toLocaleString()}</span>
+                    </div>
                   </div>
+
+                  <button
+                    onClick={handleConfirmTrade}
+                    disabled={isLoading || !selectedStock || quantity <= 0 || !userId}
+                    className="w-full bg-[#3B5BDB] text-white rounded-xl py-3 font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? "Placing Trade..." : "Confirm Trade"}
+                  </button>
+
+                  {error && (
+                    <p className="text-xs text-red-500 text-center">{error}</p>
+                  )}
+
+                  <p className="text-xs text-gray-400 text-center">
+                    This is a simulated trade. No real money is used.
+                  </p>
                 </div>
-
-                <button className="w-full bg-[#3B5BDB] text-white rounded-xl py-3 font-medium text-sm hover:bg-blue-700 transition-colors">
-                  Confirm Trade
-                </button>
-
-                <p className="text-xs text-gray-400 text-center">
-                  This is a simulated trade. No real money is used.
-                </p>
               </div>
+
+              {result && (
+                <div className="bg-white rounded-2xl shadow-sm p-6">
+                  <h2 className="font-semibold text-gray-900 mb-5">Simulation Results</h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-500">Final Portfolio Value</p>
+                      <p className="text-lg font-bold text-gray-900 mt-1">
+                        ₹{result.metrics.final_value.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-500">Total Return</p>
+                      <p
+                        className={`text-lg font-bold mt-1 ${
+                          result.metrics.total_return_pct >= 0 ? "text-green-600" : "text-red-500"
+                        }`}
+                      >
+                        {result.metrics.total_return_pct.toFixed(2)}%
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-500">Max Drawdown</p>
+                      <p className="text-lg font-bold text-red-500 mt-1">
+                        {result.metrics.max_drawdown_pct.toFixed(2)}%
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-500">vs Benchmark (SPY)</p>
+                      <p className="text-lg font-bold text-gray-900 mt-1">
+                        {result.metrics.benchmark
+                          ? `${result.metrics.benchmark.total_return_pct.toFixed(2)}%`
+                          : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {result.metrics.outperformance_pct !== null && (
+                    <p
+                      className={`mt-4 text-sm font-medium text-center ${
+                        result.metrics.outperformance_pct >= 0 ? "text-green-600" : "text-red-500"
+                      }`}
+                    >
+                      {result.metrics.outperformance_pct >= 0
+                        ? `Your trade outperformed SPY by ${result.metrics.outperformance_pct.toFixed(2)}%`
+                        : `Your trade underperformed SPY by ${Math.abs(result.metrics.outperformance_pct).toFixed(2)}%`}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Market Watch */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <h2 className="font-semibold text-gray-900 mb-5">Market Watch</h2>
               <div className="space-y-3">
-                {[
-                  { name: "Reliance Industries", symbol: "RELIANCE", price: 2820, change: "+1.2%" },
-                  { name: "HDFC Bank", symbol: "HDFCBANK", price: 1624, change: "+0.8%" },
-                  { name: "Infosys", symbol: "INFY", price: 2120, change: "-0.4%" },
-                  { name: "Tata Motors", symbol: "TATAMOTORS", price: 945, change: "+2.1%" },
-                  { name: "Nifty 50 ETF", symbol: "NIFTYBEES", price: 248, change: "+0.6%" },
-                  { name: "SBI Bluechip Fund", symbol: "SBIBLUECHIP", price: 498, change: "-0.9%" },
-                  { name: "Wipro", symbol: "WIPRO", price: 542, change: "+1.5%" },
-                  { name: "Bajaj Finance", symbol: "BAJFINANCE", price: 7240, change: "+0.3%" },
-                ].map((stock) => (
-                  <div key={stock.symbol} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 cursor-pointer border border-transparent hover:border-gray-200">
+                {MARKET_STOCKS.map((stock) => (
+                  <div
+                    key={stock.symbol}
+                    onClick={() => setSelectedStock(stock.ticker)}
+                    className={`flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-colors ${
+                      stock.ticker === selectedStock
+                        ? "border-[#3B5BDB] bg-blue-50"
+                        : "border-transparent hover:bg-gray-50 hover:border-gray-200"
+                    }`}
+                  >
                     <div>
                       <p className="text-sm font-medium text-gray-900">{stock.name}</p>
                       <p className="text-xs text-gray-400">{stock.symbol}</p>

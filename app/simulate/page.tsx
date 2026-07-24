@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/dashboard/sidebar"
 
-const AVAILABLE_CASH = 75500
-
 const MARKET_STOCKS = [
   { name: "Reliance Industries", symbol: "RELIANCE", ticker: "RELIANCE.NS", price: 2820, change: "+1.2%" },
   { name: "HDFC Bank", symbol: "HDFCBANK", ticker: "HDFCBANK.NS", price: 1624, change: "+0.8%" },
@@ -45,6 +43,8 @@ const formatDate = (date: Date) => date.toISOString().slice(0, 10)
 
 export default function SimulatePage() {
   const [userId, setUserId] = useState<string | null>(null)
+  const [currentSavings, setCurrentSavings] = useState<number | null>(null)
+  const [totalInvested, setTotalInvested] = useState(0)
   const [selectedStock, setSelectedStock] = useState("")
   const [action, setAction] = useState<"buy" | "sell">("buy")
   const [quantity, setQuantity] = useState(0)
@@ -56,20 +56,46 @@ export default function SimulatePage() {
     const storedUserId = localStorage.getItem("finsight_user_id")
     if (storedUserId) {
       setUserId(storedUserId)
+      loadUserData(storedUserId)
     } else {
       setError("Please complete onboarding before simulating trades.")
     }
   }, [])
 
+  const loadUserData = async (id: string) => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+    const [userRes, portfolioRes] = await Promise.allSettled([
+      fetch(`${apiUrl}/users/${id}`),
+      fetch(`${apiUrl}/users/${id}/portfolio`),
+    ])
+
+    if (userRes.status === "fulfilled" && userRes.value.ok) {
+      const user = await userRes.value.json()
+      setCurrentSavings(user.current_savings ?? 0)
+    }
+
+    if (portfolioRes.status === "fulfilled" && portfolioRes.value.ok) {
+      const portfolio = await portfolioRes.value.json()
+      setTotalInvested(portfolio.holdings && portfolio.holdings.length > 0 ? portfolio.total_value : 0)
+    }
+  }
+
+  const availableCash = (currentSavings ?? 0) - totalInvested
+
   const selectedStockInfo = MARKET_STOCKS.find((s) => s.ticker === selectedStock)
   const currentPrice = selectedStockInfo?.price ?? 0
   const estimatedTotal = currentPrice * quantity
   const afterTradeCash =
-    action === "buy" ? AVAILABLE_CASH - estimatedTotal : AVAILABLE_CASH + estimatedTotal
+    action === "buy" ? availableCash - estimatedTotal : availableCash + estimatedTotal
 
   const handleConfirmTrade = async () => {
     if (!userId) {
       setError("Please complete onboarding before simulating trades.")
+      return
+    }
+    if (currentSavings === null) {
+      setError("Still loading your account details. Please try again in a moment.")
       return
     }
     if (!selectedStock || quantity <= 0) {
@@ -95,7 +121,7 @@ export default function SimulatePage() {
             tickers: [selectedStock],
             start_date: formatDate(oneYearAgo),
             end_date: formatDate(today),
-            starting_cash: AVAILABLE_CASH,
+            starting_cash: currentSavings,
             trades: [
               {
                 ticker: selectedStock,
@@ -138,11 +164,11 @@ export default function SimulatePage() {
           <div className="bg-[#3B5BDB] text-white rounded-2xl p-5 mb-8 flex items-center justify-between">
             <div>
               <p className="text-blue-200 text-sm">Available Virtual Cash</p>
-              <p className="text-3xl font-bold mt-1">₹{AVAILABLE_CASH.toLocaleString()}</p>
+              <p className="text-3xl font-bold mt-1">₹{availableCash.toLocaleString()}</p>
             </div>
             <div className="text-right">
               <p className="text-blue-200 text-sm">Total Invested</p>
-              <p className="text-2xl font-bold mt-1">₹1,24,500</p>
+              <p className="text-2xl font-bold mt-1">₹{totalInvested.toLocaleString()}</p>
             </div>
           </div>
 
@@ -221,7 +247,7 @@ export default function SimulatePage() {
 
                   <button
                     onClick={handleConfirmTrade}
-                    disabled={isLoading || !selectedStock || quantity <= 0 || !userId}
+                    disabled={isLoading || !selectedStock || quantity <= 0 || !userId || currentSavings === null}
                     className="w-full bg-[#3B5BDB] text-white rounded-xl py-3 font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isLoading ? "Placing Trade..." : "Confirm Trade"}

@@ -22,7 +22,7 @@ export function PerformanceChart({ dailyValues = [] }: PerformanceChartProps) {
   const chartData = dailyValues
     .filter((_, i) => i % 5 === 0 || i === dailyValues.length - 1)
     .map((row) => ({
-      label: new Date(row.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+      label: new Date(row.date).toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
       value: row.value,
     }))
 
@@ -33,7 +33,7 @@ export function PerformanceChart({ dailyValues = [] }: PerformanceChartProps) {
       <div>
         <h2 className="text-base font-semibold tracking-tight">Portfolio Performance</h2>
         <p className="text-sm text-muted-foreground">
-          {chartData.length > 0 ? "From your most recent simulation" : "No simulations yet"}
+          {chartData.length > 0 ? "Portfolio value over simulation period" : "No simulations yet"}
         </p>
       </div>
       {chartData.length === 0 ? (
@@ -59,7 +59,7 @@ export function PerformanceChart({ dailyValues = [] }: PerformanceChartProps) {
               width={56}
               className="text-xs"
               domain={['auto', 'auto']}
-              tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
+              tickFormatter={(value) => `₹${(value / 1000).toFixed(1)}k`}
             />
             <ChartTooltip
               cursor={false}

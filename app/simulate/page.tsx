@@ -85,8 +85,6 @@ export default function SimulatePage() {
       const today = new Date()
       const oneYearAgo = new Date(today)
       oneYearAgo.setFullYear(today.getFullYear() - 1)
-      const sixMonthsAgo = new Date(today)
-      sixMonthsAgo.setMonth(today.getMonth() - 6)
 
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/simulate/sandbox`,
@@ -103,7 +101,7 @@ export default function SimulatePage() {
                 ticker: selectedStock,
                 action,
                 quantity,
-                trade_date: formatDate(sixMonthsAgo),
+                trade_date: formatDate(new Date(oneYearAgo.getTime() + 3 * 24 * 60 * 60 * 1000)),
               },
             ],
             benchmark_ticker: "SPY",

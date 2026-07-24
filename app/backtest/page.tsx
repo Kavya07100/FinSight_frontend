@@ -36,11 +36,21 @@ interface DailyValue {
   value: number
 }
 
+interface ExecutedTrade {
+  ticker: string
+  action: "buy" | "sell"
+  quantity: number
+  trade_date: string
+  price: number
+  cost: number
+}
+
 interface SimulationMetrics {
   final_value: number
   total_return_pct: number
   max_drawdown_pct: number
   daily_values: DailyValue[]
+  executed_trades: ExecutedTrade[]
   benchmark: BenchmarkMetrics | null
   outperformance_pct: number | null
 }
@@ -80,8 +90,8 @@ const getSipTradeCount = (period: string) => {
 
 const buildYearlyBreakdown = (
   dailyValues: DailyValue[],
-  trades: TradeOut[],
-  perTradeAmount: number
+  executedTrades: ExecutedTrade[],
+  totalStartingCash: number
 ): YearlyRow[] => {
   const lastValueByYear = new Map<string, number>()
   for (const row of dailyValues) {
@@ -91,11 +101,23 @@ const buildYearlyBreakdown = (
   return Array.from(lastValueByYear.keys())
     .sort()
     .map((year) => {
-      const tradesSoFar = trades.filter((t) => t.trade_date.slice(0, 4) <= year).length
-      const invested = tradesSoFar * perTradeAmount
-      const value = lastValueByYear.get(year) ?? 0
-      const returnPct = invested > 0 ? ((value - invested) / invested) * 100 : 0
-      return { year, invested, value, returnPct }
+      const yearEnd = new Date(`${year}-12-31`)
+
+      // Real cash actually spent on buys by this point -- not an
+      // approximation. For strategies that fund the whole backtest with
+      // cash upfront (SIP), most of totalStartingCash sits idle waiting
+      // for future trade dates; that idle cash is still counted in
+      // totalValue (cash + holdings) but was never actually "invested."
+      const cashSpent = executedTrades
+        .filter((t) => t.action === "buy" && new Date(t.trade_date) <= yearEnd)
+        .reduce((sum, t) => sum + t.cost, 0)
+
+      const totalValue = lastValueByYear.get(year) ?? 0
+      const idleCash = totalStartingCash - cashSpent
+      const holdingsValue = totalValue - idleCash
+      const returnPct = cashSpent > 0 ? ((holdingsValue - cashSpent) / cashSpent) * 100 : 0
+
+      return { year, invested: cashSpent, value: holdingsValue, returnPct }
     })
 }
 
@@ -109,8 +131,7 @@ export default function BacktestPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<SimulationResult | null>(null)
-  const [lastTrades, setLastTrades] = useState<TradeOut[]>([])
-  const [lastInvestment, setLastInvestment] = useState(0)
+  const [lastStartingCash, setLastStartingCash] = useState(0)
 
   useEffect(() => {
     setUserId(localStorage.getItem("finsight_user_id"))
@@ -174,8 +195,7 @@ export default function BacktestPage() {
 
       const data: SimulationResult = await res.json()
       setResult(data)
-      setLastTrades(trades)
-      setLastInvestment(initialInvestment)
+      setLastStartingCash(startingCash)
     } catch {
       setError("Something went wrong while running the backtest. Please try again.")
     } finally {
@@ -191,7 +211,7 @@ export default function BacktestPage() {
     }))
 
   const yearlyBreakdown = result
-    ? buildYearlyBreakdown(result.metrics.daily_values, lastTrades, lastInvestment)
+    ? buildYearlyBreakdown(result.metrics.daily_values, result.metrics.executed_trades, lastStartingCash)
     : []
 
   return (

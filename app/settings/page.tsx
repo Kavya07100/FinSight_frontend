@@ -21,6 +21,10 @@ export default function SettingsPage() {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [isResetting, setIsResetting] = useState(false)
+  const [resetSuccess, setResetSuccess] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+
   useEffect(() => {
     const storedUserId = localStorage.getItem("finsight_user_id")
     if (!storedUserId) {
@@ -96,6 +100,37 @@ export default function SettingsPage() {
       setError("Something went wrong while saving your changes. Please try again.")
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleResetPortfolio = async () => {
+    if (!userId) return
+
+    const confirmed = window.confirm(
+      "This will reset all your virtual trades and restore your starting capital. Are you sure?"
+    )
+    if (!confirmed) return
+
+    setIsResetting(true)
+    setResetSuccess(false)
+    setResetError(null)
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL
+      const res = await fetch(`${apiUrl}/users/${userId}/reset-portfolio`, {
+        method: "POST",
+      })
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`)
+      }
+
+      setResetSuccess(true)
+      setTimeout(() => setResetSuccess(false), 3000)
+    } catch {
+      setResetError("Something went wrong while resetting your portfolio. Please try again.")
+    } finally {
+      setIsResetting(false)
     }
   }
 
@@ -221,8 +256,18 @@ export default function SettingsPage() {
           <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
             <h2 className="font-semibold text-gray-900 mb-2">Reset Portfolio</h2>
             <p className="text-sm text-gray-500 mb-4">This will reset all your virtual trades and restore your starting capital of ₹2,00,000. Your learning progress will not be affected.</p>
-            <button className="bg-red-50 text-red-600 border border-red-200 rounded-xl px-5 py-2 text-sm font-medium hover:bg-red-100 transition-colors">
-              Reset Virtual Portfolio
+            {resetSuccess && (
+              <p className="text-sm font-medium text-green-600 mb-4">Portfolio reset! Your virtual trades have been cleared.</p>
+            )}
+            {resetError && (
+              <p className="text-sm font-medium text-red-500 mb-4">{resetError}</p>
+            )}
+            <button
+              onClick={handleResetPortfolio}
+              disabled={isResetting || !userId}
+              className="bg-red-50 text-red-600 border border-red-200 rounded-xl px-5 py-2 text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isResetting ? "Resetting..." : "Reset Virtual Portfolio"}
             </button>
           </div>
 

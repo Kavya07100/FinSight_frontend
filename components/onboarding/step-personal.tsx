@@ -51,7 +51,7 @@ export function StepPersonal({ data, update }: Props) {
           </label>
           <div className="relative">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
-              $
+              ₹
             </span>
             <input
               id="income"
@@ -75,7 +75,7 @@ export function StepPersonal({ data, update }: Props) {
           </label>
           <div className="relative">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
-              $
+              ₹
             </span>
             <input
               id="savings"

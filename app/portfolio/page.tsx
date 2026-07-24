@@ -234,7 +234,7 @@ export default function PortfolioPage() {
                             </p>
                           </div>
                         </div>
-                        <p className="text-xs text-gray-400">{formatDate(tx.trade_date)}</p>
+                        <p className="text-xs text-gray-400">{formatDate(tx.created_at)}</p>
                       </div>
                     ))}
                   </div>

@@ -1,4 +1,8 @@
-export function Greeting() {
+interface GreetingProps {
+  firstName?: string
+}
+
+export function Greeting({ firstName }: GreetingProps) {
   const today = new Date().toLocaleDateString("en-IN", {
     weekday: "long",
     day: "numeric",
@@ -9,7 +13,7 @@ export function Greeting() {
   return (
     <header>
       <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-        Good morning, Kavya
+        Good morning, {firstName ?? "there"}
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">{today}</p>
     </header>

@@ -1,7 +1,26 @@
-import { ArrowUpRight, Wallet, Sparkles } from "lucide-react"
+import { Wallet, Sparkles, Shield } from "lucide-react"
 import { Card } from "@/components/ui/card"
 
-export function SummaryCards() {
+interface SummaryCardsProps {
+  portfolioValue?: number | null
+  riskCategory?: string | null
+  totalXp?: number | null
+  isLoading?: boolean
+}
+
+const NEXT_LEVEL_XP = 3000
+
+const formatCurrency = (value: number) => `₹${Math.round(value).toLocaleString("en-IN")}`
+
+const formatCategory = (category: string) =>
+  category
+    .split("-")
+    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .join("-")
+
+export function SummaryCards({ portfolioValue, riskCategory, totalXp, isLoading }: SummaryCardsProps) {
+  const xp = totalXp ?? 0
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <Card className="gap-0 p-5">
@@ -11,22 +30,25 @@ export function SummaryCards() {
             <Wallet className="h-[18px] w-[18px] text-primary" aria-hidden="true" />
           </span>
         </div>
-        <p className="mt-3 text-3xl font-semibold tracking-tight">₹1,24,500</p>
-        <p className="mt-1.5 inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
-          <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-          +2.4% today
+        <p className="mt-3 text-3xl font-semibold tracking-tight">
+          {isLoading ? "—" : formatCurrency(portfolioValue ?? 0)}
         </p>
+        <p className="mt-1.5 text-sm text-muted-foreground">From your profile</p>
       </Card>
 
       <Card className="gap-0 p-5">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-muted-foreground">Virtual Cash Available</p>
+          <p className="text-sm font-medium text-muted-foreground">Risk Profile</p>
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent">
-            <Wallet className="h-[18px] w-[18px] text-primary" aria-hidden="true" />
+            <Shield className="h-[18px] w-[18px] text-primary" aria-hidden="true" />
           </span>
         </div>
-        <p className="mt-3 text-3xl font-semibold tracking-tight">₹75,500</p>
-        <p className="mt-1.5 text-sm text-muted-foreground">Ready to invest</p>
+        <p className="mt-3 text-3xl font-semibold tracking-tight">
+          {isLoading ? "—" : riskCategory ? formatCategory(riskCategory) : "Not set"}
+        </p>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          {riskCategory ? "Based on your risk profile" : "Complete onboarding to see this"}
+        </p>
       </Card>
 
       <Card className="gap-0 p-5">
@@ -37,12 +59,16 @@ export function SummaryCards() {
           </span>
         </div>
         <div className="mt-3 flex items-center gap-3">
-          <p className="text-3xl font-semibold tracking-tight">2,450 XP</p>
+          <p className="text-3xl font-semibold tracking-tight">
+            {isLoading ? "—" : `${xp.toLocaleString()} XP`}
+          </p>
           <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground">
-            Level 7
+            Level 1
           </span>
         </div>
-        <p className="mt-1.5 text-sm text-muted-foreground">550 XP to Level 8</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          {Math.max(0, NEXT_LEVEL_XP - xp).toLocaleString()} XP to Level 2
+        </p>
       </Card>
     </div>
   )

@@ -1,6 +1,199 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { Sidebar } from "@/components/dashboard/sidebar"
 
+const STOCK_TICKERS: Record<string, string> = {
+  "Nifty 50": "NIFTYBEES.NS",
+  "Reliance Industries": "RELIANCE.NS",
+  "HDFC Bank": "HDFCBANK.NS",
+  "Infosys": "INFY.NS",
+  "Tata Motors": "TMPV.NS",
+}
+const STOCK_NAMES = Object.keys(STOCK_TICKERS)
+
+const TIME_PERIODS = ["1 Year", "3 Years", "5 Years", "10 Years"]
+const AVAILABLE_STRATEGIES = ["SIP (Monthly Investment)", "Buy and Hold"]
+
+const DATA_START = new Date("2022-01-01")
+
+interface TradeOut {
+  ticker: string
+  action: "buy" | "sell"
+  quantity: number
+  trade_date: string
+}
+
+interface BenchmarkMetrics {
+  ticker: string
+  final_value: number
+  total_return_pct: number
+}
+
+interface DailyValue {
+  date: string
+  value: number
+}
+
+interface SimulationMetrics {
+  final_value: number
+  total_return_pct: number
+  max_drawdown_pct: number
+  daily_values: DailyValue[]
+  benchmark: BenchmarkMetrics | null
+  outperformance_pct: number | null
+}
+
+interface SimulationResult {
+  id: string
+  metrics: SimulationMetrics
+}
+
+interface YearlyRow {
+  year: string
+  invested: number
+  value: number
+  returnPct: number
+}
+
+const formatDate = (date: Date) => date.toISOString().slice(0, 10)
+
+const formatCurrency = (value: number) => `₹${Math.round(value).toLocaleString("en-IN")}`
+
+const formatSignedPct = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
+
+const getDateRange = (period: string) => {
+  const today = new Date()
+  const years = period === "1 Year" ? 1 : period === "3 Years" ? 3 : period === "5 Years" ? 5 : 10
+  const start = new Date(today)
+  start.setFullYear(today.getFullYear() - years)
+  return { start: start < DATA_START ? new Date(DATA_START) : start, end: today }
+}
+
+const getSipTradeCount = (period: string) => {
+  if (period === "1 Year") return 12
+  if (period === "3 Years") return 36
+  if (period === "5 Years") return 60
+  return 120 // 10 Years
+}
+
+const buildYearlyBreakdown = (
+  dailyValues: DailyValue[],
+  trades: TradeOut[],
+  perTradeAmount: number
+): YearlyRow[] => {
+  const lastValueByYear = new Map<string, number>()
+  for (const row of dailyValues) {
+    lastValueByYear.set(row.date.slice(0, 4), row.value)
+  }
+
+  return Array.from(lastValueByYear.keys())
+    .sort()
+    .map((year) => {
+      const tradesSoFar = trades.filter((t) => t.trade_date.slice(0, 4) <= year).length
+      const invested = tradesSoFar * perTradeAmount
+      const value = lastValueByYear.get(year) ?? 0
+      const returnPct = invested > 0 ? ((value - invested) / invested) * 100 : 0
+      return { year, invested, value, returnPct }
+    })
+}
+
 export default function BacktestPage() {
+  const [userId, setUserId] = useState<string | null>(null)
+  const [selectedStock, setSelectedStock] = useState(STOCK_NAMES[0])
+  const [strategy, setStrategy] = useState(AVAILABLE_STRATEGIES[0])
+  const [timePeriod, setTimePeriod] = useState(TIME_PERIODS[0])
+  const [initialInvestment, setInitialInvestment] = useState(10000)
+
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<SimulationResult | null>(null)
+  const [lastTrades, setLastTrades] = useState<TradeOut[]>([])
+  const [lastInvestment, setLastInvestment] = useState(0)
+
+  useEffect(() => {
+    setUserId(localStorage.getItem("finsight_user_id"))
+  }, [])
+
+  const handleRunBacktest = async () => {
+    if (!userId) {
+      setError("Please complete onboarding before running a backtest.")
+      return
+    }
+    if (!AVAILABLE_STRATEGIES.includes(strategy)) {
+      setError("This strategy is coming soon.")
+      return
+    }
+
+    setError(null)
+    setIsLoading(true)
+    setResult(null)
+
+    try {
+      const ticker = STOCK_TICKERS[selectedStock]
+      const { start, end } = getDateRange(timePeriod)
+
+      let trades: TradeOut[]
+      let startingCash: number
+
+      if (strategy === "Buy and Hold") {
+        const tradeDate = new Date(start)
+        tradeDate.setDate(tradeDate.getDate() + 3)
+        trades = [{ ticker, action: "buy", quantity: 1, trade_date: formatDate(tradeDate) }]
+        startingCash = initialInvestment
+      } else {
+        const numTrades = getSipTradeCount(timePeriod)
+        trades = Array.from({ length: numTrades }, (_, n) => {
+          const tradeDate = new Date(start)
+          tradeDate.setDate(tradeDate.getDate() + n * 30)
+          return { ticker, action: "buy" as const, quantity: 1, trade_date: formatDate(tradeDate) }
+        })
+        startingCash = initialInvestment * numTrades
+      }
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/simulate/sandbox`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tickers: [ticker],
+            start_date: formatDate(start),
+            end_date: formatDate(end),
+            starting_cash: startingCash,
+            trades,
+            benchmark_ticker: "SPY",
+          }),
+        }
+      )
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`)
+      }
+
+      const data: SimulationResult = await res.json()
+      setResult(data)
+      setLastTrades(trades)
+      setLastInvestment(initialInvestment)
+    } catch {
+      setError("Something went wrong while running the backtest. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const chartData = (result?.metrics.daily_values ?? [])
+    .filter((_, i, arr) => i % 5 === 0 || i === arr.length - 1)
+    .map((row) => ({
+      label: new Date(row.date).toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
+      value: row.value,
+    }))
+
+  const yearlyBreakdown = result
+    ? buildYearlyBreakdown(result.metrics.daily_values, lastTrades, lastInvestment)
+    : []
+
   return (
     <div className="flex min-h-screen bg-[#FAF7F0]">
       <Sidebar />
@@ -22,32 +215,47 @@ export default function BacktestPage() {
 
                 <div>
                   <label className="text-sm text-gray-500 mb-1 block">Select Stock / Index</label>
-                  <select className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-[#FAF7F0] focus:outline-none focus:ring-2 focus:ring-[#3B5BDB]">
-                    <option>Nifty 50</option>
-                    <option>Reliance Industries</option>
-                    <option>HDFC Bank</option>
-                    <option>Infosys</option>
-                    <option>Tata Motors</option>
+                  <select
+                    value={selectedStock}
+                    onChange={(e) => setSelectedStock(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-[#FAF7F0] focus:outline-none focus:ring-2 focus:ring-[#3B5BDB]"
+                  >
+                    {STOCK_NAMES.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
                   <label className="text-sm text-gray-500 mb-1 block">Strategy</label>
-                  <select className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-[#FAF7F0] focus:outline-none focus:ring-2 focus:ring-[#3B5BDB]">
-                    <option>SIP (Monthly Investment)</option>
-                    <option>Buy and Hold</option>
-                    <option>Moving Average Crossover</option>
-                    <option>RSI Based</option>
+                  <select
+                    value={strategy}
+                    onChange={(e) => setStrategy(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-[#FAF7F0] focus:outline-none focus:ring-2 focus:ring-[#3B5BDB]"
+                  >
+                    <option value="SIP (Monthly Investment)">SIP (Monthly Investment)</option>
+                    <option value="Buy and Hold">Buy and Hold</option>
+                    <option value="Moving Average Crossover" disabled>
+                      Moving Average Crossover (Coming Soon)
+                    </option>
+                    <option value="RSI Based" disabled>
+                      RSI Based (Coming Soon)
+                    </option>
                   </select>
                 </div>
 
                 <div>
                   <label className="text-sm text-gray-500 mb-1 block">Time Period</label>
-                  <select className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-[#FAF7F0] focus:outline-none focus:ring-2 focus:ring-[#3B5BDB]">
-                    <option>1 Year</option>
-                    <option>3 Years</option>
-                    <option>5 Years</option>
-                    <option>10 Years</option>
+                  <select
+                    value={timePeriod}
+                    onChange={(e) => setTimePeriod(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-[#FAF7F0] focus:outline-none focus:ring-2 focus:ring-[#3B5BDB]"
+                  >
+                    {TIME_PERIODS.map((period) => (
+                      <option key={period}>{period}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -57,15 +265,22 @@ export default function BacktestPage() {
                     <span className="absolute left-4 top-3 text-gray-400 text-sm">₹</span>
                     <input
                       type="number"
-                      defaultValue="10000"
+                      value={initialInvestment || ""}
+                      onChange={(e) => setInitialInvestment(e.target.value === "" ? 0 : Number(e.target.value))}
                       className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-sm bg-[#FAF7F0] focus:outline-none focus:ring-2 focus:ring-[#3B5BDB]"
                     />
                   </div>
                 </div>
 
-                <button className="w-full bg-[#3B5BDB] text-white rounded-xl py-3 font-medium text-sm hover:bg-blue-700 transition-colors">
-                  Run Backtest
+                <button
+                  onClick={handleRunBacktest}
+                  disabled={isLoading || !userId || initialInvestment <= 0}
+                  className="w-full bg-[#3B5BDB] text-white rounded-xl py-3 font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? "Running..." : "Run Backtest"}
                 </button>
+
+                {error && <p className="text-xs text-red-500 text-center">{error}</p>}
               </div>
             </div>
 
@@ -75,10 +290,31 @@ export default function BacktestPage() {
               {/* Result Cards */}
               <div className="grid grid-cols-4 gap-4">
                 {[
-                  { label: "Total Return", value: "+68.4%", color: "text-green-600" },
-                  { label: "Final Value", value: "₹16,840", color: "text-gray-900" },
-                  { label: "Max Drawdown", value: "-18.2%", color: "text-red-500" },
-                  { label: "Sharpe Ratio", value: "1.42", color: "text-gray-900" },
+                  {
+                    label: "Total Return",
+                    value: result ? formatSignedPct(result.metrics.total_return_pct) : "—",
+                    color: !result ? "text-gray-900" : result.metrics.total_return_pct >= 0 ? "text-green-600" : "text-red-500",
+                  },
+                  {
+                    label: "Final Value",
+                    value: result ? formatCurrency(result.metrics.final_value) : "—",
+                    color: "text-gray-900",
+                  },
+                  {
+                    label: "Max Drawdown",
+                    value: result ? `-${result.metrics.max_drawdown_pct.toFixed(1)}%` : "—",
+                    color: "text-red-500",
+                  },
+                  {
+                    label: "vs SPY",
+                    value: result?.metrics.benchmark
+                      ? formatSignedPct(result.metrics.benchmark.total_return_pct)
+                      : "—",
+                    color:
+                      result?.metrics.benchmark && result.metrics.benchmark.total_return_pct >= 0
+                        ? "text-green-600"
+                        : "text-red-500",
+                  },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white rounded-2xl shadow-sm p-4">
                     <p className="text-xs text-gray-500">{stat.label}</p>
@@ -87,12 +323,48 @@ export default function BacktestPage() {
                 ))}
               </div>
 
-              {/* Chart Placeholder */}
+              {/* Chart */}
               <div className="bg-white rounded-2xl shadow-sm p-6">
                 <h3 className="font-semibold text-gray-900 mb-4">Portfolio Value Over Time</h3>
-                <div className="h-48 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl flex items-center justify-center">
-                  <p className="text-gray-400 text-sm">Chart will render after running backtest</p>
-                </div>
+                {result && chartData.length > 0 ? (
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ left: 4, right: 12, top: 8 }}>
+                        <CartesianGrid vertical={false} stroke="#E5E7EB" strokeDasharray="4 4" />
+                        <XAxis
+                          dataKey="label"
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          interval={Math.max(0, Math.floor(chartData.length / 6))}
+                          tick={{ fontSize: 11, fill: "#9CA3AF" }}
+                        />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          width={56}
+                          domain={["auto", "auto"]}
+                          tick={{ fontSize: 11, fill: "#9CA3AF" }}
+                          tickFormatter={(value) => `₹${(value / 1000).toFixed(1)}k`}
+                        />
+                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                        <Line
+                          dataKey="value"
+                          type="monotone"
+                          stroke="#3B5BDB"
+                          strokeWidth={2.5}
+                          dot={false}
+                          activeDot={{ r: 5 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-48 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl flex items-center justify-center">
+                    <p className="text-gray-400 text-sm">Chart will render after running backtest</p>
+                  </div>
+                )}
               </div>
 
               {/* Yearly Breakdown */}
@@ -100,33 +372,42 @@ export default function BacktestPage() {
                 <div className="p-5 border-b border-gray-100">
                   <h3 className="font-semibold text-gray-900">Yearly Breakdown</h3>
                 </div>
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="text-left text-xs text-gray-500 font-medium px-5 py-3">Year</th>
-                      <th className="text-right text-xs text-gray-500 font-medium px-5 py-3">Invested</th>
-                      <th className="text-right text-xs text-gray-500 font-medium px-5 py-3">Value</th>
-                      <th className="text-right text-xs text-gray-500 font-medium px-5 py-3">Return</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {[
-                      { year: "2022", invested: "₹10,000", value: "₹9,200", ret: "-8.0%", pos: false },
-                      { year: "2023", invested: "₹10,000", value: "₹12,400", ret: "+24.0%", pos: true },
-                      { year: "2024", invested: "₹10,000", value: "₹14,100", ret: "+41.0%", pos: true },
-                      { year: "2025", invested: "₹10,000", value: "₹16,840", ret: "+68.4%", pos: true },
-                    ].map((row) => (
-                      <tr key={row.year} className="hover:bg-gray-50">
-                        <td className="px-5 py-4 text-sm font-medium text-gray-900">{row.year}</td>
-                        <td className="px-5 py-4 text-right text-sm text-gray-700">{row.invested}</td>
-                        <td className="px-5 py-4 text-right text-sm text-gray-700">{row.value}</td>
-                        <td className={`px-5 py-4 text-right text-sm font-medium ${row.pos ? "text-green-600" : "text-red-500"}`}>
-                          {row.ret}
-                        </td>
+                {yearlyBreakdown.length === 0 ? (
+                  <p className="p-8 text-center text-sm text-gray-500">
+                    Run a backtest to see the yearly breakdown.
+                  </p>
+                ) : (
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left text-xs text-gray-500 font-medium px-5 py-3">Year</th>
+                        <th className="text-right text-xs text-gray-500 font-medium px-5 py-3">Invested</th>
+                        <th className="text-right text-xs text-gray-500 font-medium px-5 py-3">Value</th>
+                        <th className="text-right text-xs text-gray-500 font-medium px-5 py-3">Return</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {yearlyBreakdown.map((row) => (
+                        <tr key={row.year} className="hover:bg-gray-50">
+                          <td className="px-5 py-4 text-sm font-medium text-gray-900">{row.year}</td>
+                          <td className="px-5 py-4 text-right text-sm text-gray-700">
+                            {formatCurrency(row.invested)}
+                          </td>
+                          <td className="px-5 py-4 text-right text-sm text-gray-700">
+                            {formatCurrency(row.value)}
+                          </td>
+                          <td
+                            className={`px-5 py-4 text-right text-sm font-medium ${
+                              row.returnPct >= 0 ? "text-green-600" : "text-red-500"
+                            }`}
+                          >
+                            {formatSignedPct(row.returnPct)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
 
             </div>

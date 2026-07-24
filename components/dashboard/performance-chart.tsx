@@ -19,10 +19,12 @@ interface PerformanceChartProps {
 }
 
 export function PerformanceChart({ dailyValues = [] }: PerformanceChartProps) {
-  const chartData = dailyValues.map((row) => ({
-    label: new Date(row.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
-    value: row.value,
-  }))
+  const chartData = dailyValues
+    .filter((_, i) => i % 5 === 0 || i === dailyValues.length - 1)
+    .map((row) => ({
+      label: new Date(row.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+      value: row.value,
+    }))
 
   const tickInterval = Math.max(0, Math.floor(chartData.length / 6))
 
@@ -56,6 +58,7 @@ export function PerformanceChart({ dailyValues = [] }: PerformanceChartProps) {
               tickMargin={8}
               width={56}
               className="text-xs"
+              domain={['auto', 'auto']}
               tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
             />
             <ChartTooltip

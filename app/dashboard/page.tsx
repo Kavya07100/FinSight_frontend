@@ -22,6 +22,7 @@ interface StrategyModule {
 export default function DashboardPage() {
   const [firstName, setFirstName] = useState<string | undefined>(undefined)
   const [portfolioValue, setPortfolioValue] = useState<number | null>(null)
+  const [portfolioValueSource, setPortfolioValueSource] = useState<"holdings" | "savings">("savings")
   const [riskCategory, setRiskCategory] = useState<string | null>(null)
   const [totalXp, setTotalXp] = useState<number | null>(null)
   const [dailyValues, setDailyValues] = useState<DailyValue[]>([])
@@ -43,17 +44,20 @@ export default function DashboardPage() {
     // Each section degrades independently -- a missing risk profile or
     // strategy (both plausible for a new user) shouldn't block the rest
     // of the dashboard from rendering with what IS available.
-    const [userRes, riskRes, strategyRes, simRes] = await Promise.allSettled([
+    const [userRes, riskRes, strategyRes, simRes, portfolioRes] = await Promise.allSettled([
       fetch(`${apiUrl}/users/${userId}`),
       fetch(`${apiUrl}/users/${userId}/risk-profile`),
       fetch(`${apiUrl}/users/${userId}/strategy`),
       fetch(`${apiUrl}/users/${userId}/simulations/latest`),
+      fetch(`${apiUrl}/users/${userId}/portfolio`),
     ])
+
+    let currentSavings: number | null = null
 
     if (userRes.status === "fulfilled" && userRes.value.ok) {
       const user = await userRes.value.json()
       setFirstName(user.full_name ? user.full_name.split(" ")[0] : undefined)
-      setPortfolioValue(user.current_savings ?? null)
+      currentSavings = user.current_savings ?? null
     }
 
     if (riskRes.status === "fulfilled" && riskRes.value.ok) {
@@ -75,6 +79,25 @@ export default function DashboardPage() {
       setDailyValues(sim.metrics?.daily_values ?? [])
     }
 
+    // Prefer the real portfolio value (holdings marked to market); fall
+    // back to onboarding's current_savings only when there are no holdings
+    // yet (e.g. before the user's first simulated trade).
+    let holdingsValue: number | null = null
+    if (portfolioRes.status === "fulfilled" && portfolioRes.value.ok) {
+      const portfolio = await portfolioRes.value.json()
+      if (portfolio.holdings && portfolio.holdings.length > 0) {
+        holdingsValue = portfolio.total_value
+      }
+    }
+
+    if (holdingsValue != null) {
+      setPortfolioValue(holdingsValue)
+      setPortfolioValueSource("holdings")
+    } else {
+      setPortfolioValue(currentSavings)
+      setPortfolioValueSource("savings")
+    }
+
     setIsLoading(false)
   }
 
@@ -86,6 +109,7 @@ export default function DashboardPage() {
           <Greeting firstName={firstName} />
           <SummaryCards
             portfolioValue={portfolioValue}
+            portfolioValueSource={portfolioValueSource}
             riskCategory={riskCategory}
             totalXp={totalXp}
             isLoading={isLoading}

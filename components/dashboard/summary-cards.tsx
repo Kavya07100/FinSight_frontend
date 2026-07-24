@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card"
 
 interface SummaryCardsProps {
   portfolioValue?: number | null
+  portfolioValueSource?: "holdings" | "savings"
   riskCategory?: string | null
   totalXp?: number | null
   isLoading?: boolean
@@ -18,7 +19,13 @@ const formatCategory = (category: string) =>
     .map((word) => word[0].toUpperCase() + word.slice(1))
     .join("-")
 
-export function SummaryCards({ portfolioValue, riskCategory, totalXp, isLoading }: SummaryCardsProps) {
+export function SummaryCards({
+  portfolioValue,
+  portfolioValueSource = "savings",
+  riskCategory,
+  totalXp,
+  isLoading,
+}: SummaryCardsProps) {
   const xp = totalXp ?? 0
 
   return (
@@ -33,7 +40,9 @@ export function SummaryCards({ portfolioValue, riskCategory, totalXp, isLoading 
         <p className="mt-3 text-3xl font-semibold tracking-tight">
           {isLoading ? "—" : formatCurrency(portfolioValue ?? 0)}
         </p>
-        <p className="mt-1.5 text-sm text-muted-foreground">From your profile</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          {portfolioValueSource === "holdings" ? "Virtual holdings value" : "Starting savings"}
+        </p>
       </Card>
 
       <Card className="gap-0 p-5">

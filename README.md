@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FinSight Frontend
 
-## Getting Started
+FinSight is a virtual investing and financial-literacy platform. This is the Next.js frontend:
+an onboarding flow that builds a user's risk profile, a dashboard summarizing their virtual
+portfolio and progress, a trade simulator and multi-strategy backtester backed by real historical
+price data, an AI chat assistant for investing questions, and a personalized, AI-generated
+learning path.
 
-First, run the development server:
+It talks to the FinSight backend (FastAPI) for all real data — onboarding, risk scoring,
+simulations, portfolio/transactions, the learning path, and the chat assistant.
+
+## Tech Stack
+
+- **Next.js 16** (App Router) — React framework
+- **React 19**
+- **Tailwind CSS 4** — styling
+- **Recharts** — portfolio performance / allocation charts
+- **shadcn**-style UI primitives (`components/ui/*`) — Button, Card, Avatar, Chart wrappers, etc.
+- **lucide-react** — icons
+
+## Prerequisites
+
+- Node.js 18.18+ (Next.js 16 requirement)
+- The FinSight backend running and reachable (defaults to `http://localhost:8000`)
+
+## Setup
 
 ```bash
+# 1. Clone and enter the project
+git clone <repo-url> finsight
+cd finsight
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure environment variables
+# Create a .env.local file in the project root (see "Environment Variables" below)
+
+# 4. Run the dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app will be available at `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> The backend must be running first for anything beyond the onboarding page's local form state
+> to work — every other page fetches real data over HTTP and has no built-in mock/offline mode.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment Variables
 
-## Learn More
+Create a `.env.local` file in the project root:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Variable | Description |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | Base URL of the FinSight backend API. Used by every page that fetches real data (all except onboarding's local form state before submission). |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Pages
 
-## Deploy on Vercel
+| Route | Description |
+|---|---|
+| `/` | Onboarding — 3-step flow (personal info, investment goal, risk tolerance) that creates a user and computes their initial risk profile, then redirects to the dashboard |
+| `/dashboard` | Home dashboard — real portfolio value, risk category, and XP summary cards; a financial-pulse message tailored to risk category; a performance chart from the user's latest simulation; a static allocation chart and market news feed |
+| `/chat` | AI chat assistant — ask free-text investing questions, answered by the backend's RAG-based Learning Agent |
+| `/simulate` | Trade simulator — pick a stock from Market Watch, choose buy/sell and quantity, and run a one-year sandbox backtest against real historical prices with an SPY benchmark comparison |
+| `/backtest` | Strategy backtester — run "Buy and Hold" or "SIP (Monthly Investment)" over 1/3/5/10-year windows for five supported stocks, with real return/drawdown/benchmark metrics, a performance chart, and a yearly invested-vs-value breakdown ("Moving Average Crossover" and "RSI Based" are marked Coming Soon — not implemented yet) |
+| `/portfolio` | Virtual portfolio — real current holdings (quantity, avg buy price, current price, P&L%) and the last 10 transactions, sourced from the backend's portfolio engine |
+| `/learning` | Personalized learning path — auto-generates (or loads) a strategy-agent learning path based on the user's risk profile; shows step-by-step modules with difficulty, XP, and rationale |
+| `/settings` | Profile settings — edit personal info and investment preferences; saving updates the user record and, if goal/risk-tolerance changed, recomputes a new risk-profile version |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/
+  page.tsx                 Onboarding (/)
+  dashboard/page.tsx        Dashboard
+  chat/page.tsx               Chat
+  simulate/page.tsx             Trade simulator
+  backtest/page.tsx                Strategy backtester
+  portfolio/page.tsx                  Portfolio
+  learning/page.tsx                     Learning path
+  settings/page.tsx                       Settings
+components/
+  onboarding/               Onboarding step components + shared form state/types
+  dashboard/                 Sidebar nav, greeting, summary cards, charts, market news
+  chat/                        Chat header/message/input
+  ui/                             Shared primitives (Button, Card, Avatar, Chart wrappers)
+lib/
+  utils.ts                  Shared helpers (e.g. `cn` classname merge)
+```

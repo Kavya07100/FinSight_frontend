@@ -20,6 +20,7 @@ interface MarketPrice {
   price: number
   change_pct: number
   name: string
+  period?: string
 }
 
 interface MarketScenario {
@@ -84,12 +85,20 @@ interface SimulationResult {
   ended_at: string | null
 }
 
+interface ScenarioPortfolio {
+  scenario_id: string
+  virtual_cash: number
+  starting_balance: number
+  is_started: boolean
+  total_invested: number
+  holdings: unknown[]
+  overall_return_pct: number
+}
+
 const formatDate = (date: Date) => date.toISOString().slice(0, 10)
 
 export default function SimulatePage() {
   const [userId, setUserId] = useState<string | null>(null)
-  const [currentSavings, setCurrentSavings] = useState<number | null>(null)
-  const [totalInvested, setTotalInvested] = useState(0)
   const [selectedStock, setSelectedStock] = useState("")
   const [action, setAction] = useState<"buy" | "sell">("buy")
   const [quantity, setQuantity] = useState(0)
@@ -100,22 +109,32 @@ export default function SimulatePage() {
   const [scenarios, setScenarios] = useState<MarketScenario[]>([])
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>("live")
   const [resultScenarioName, setResultScenarioName] = useState<string | null>(null)
+  const [scenarioPortfolio, setScenarioPortfolio] = useState<ScenarioPortfolio | null>(null)
+  const [balanceInput, setBalanceInput] = useState("100000")
+  const [isSettingBalance, setIsSettingBalance] = useState(false)
+  const [balanceError, setBalanceError] = useState<string | null>(null)
 
   useEffect(() => {
     const storedUserId = localStorage.getItem("finsight_user_id")
     if (storedUserId) {
       setUserId(storedUserId)
-      loadUserData(storedUserId)
     } else {
       setError("Please complete onboarding before simulating trades.")
     }
-    loadMarketPrices()
     loadScenarios()
   }, [])
 
-  const loadMarketPrices = async () => {
+  // Live mode uses today's (delayed) prices; a historical scenario uses
+  // average-of-period prices instead -- re-fetch whenever the selection
+  // changes so Market Watch and the trade form's Current Price stay in sync.
+  const loadMarketData = async (scenario: MarketScenario) => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/market/prices`)
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL
+      const url =
+        scenario.id === "live"
+          ? `${apiUrl}/market/prices`
+          : `${apiUrl}/market/historical-prices?start_date=${scenario.start_date}&end_date=${scenario.end_date}`
+      const res = await fetch(url)
       if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
       setMarketPrices(await res.json())
     } catch {
@@ -137,43 +156,82 @@ export default function SimulatePage() {
     }
   }
 
-  const applyPortfolio = (portfolio: { holdings: unknown[]; total_value: number }) => {
-    setTotalInvested(portfolio.holdings && portfolio.holdings.length > 0 ? portfolio.total_value : 0)
-  }
-
-  const loadUserData = async (id: string) => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL
-
-    const [userRes, portfolioRes] = await Promise.allSettled([
-      fetch(`${apiUrl}/users/${id}`),
-      fetch(`${apiUrl}/users/${id}/portfolio`),
-    ])
-
-    if (userRes.status === "fulfilled" && userRes.value.ok) {
-      const user = await userRes.value.json()
-      setCurrentSavings(user.current_savings ?? 0)
-    }
-
-    if (portfolioRes.status === "fulfilled" && portfolioRes.value.ok) {
-      applyPortfolio(await portfolioRes.value.json())
-    }
-  }
-
-  const refreshPortfolio = async (id: string) => {
+  const loadScenarioPortfolio = async (uid: string, scenarioId: string) => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${id}/portfolio`)
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${uid}/scenario/${scenarioId}/portfolio`)
       if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
-      applyPortfolio(await res.json())
+      const data: ScenarioPortfolio = await res.json()
+      setScenarioPortfolio(data)
+      setBalanceInput(String(data.starting_balance))
     } catch {
-      // Keep the last known totalInvested if the post-trade refresh fails.
+      setScenarioPortfolio(null)
     }
   }
 
-  const availableCash = (currentSavings ?? 0) - totalInvested
+  const availableCash = scenarioPortfolio?.virtual_cash ?? 0
+  const totalInvested = scenarioPortfolio?.total_invested ?? 0
 
   const allScenarios = [LIVE_SCENARIO, ...scenarios]
   const selectedScenario = allScenarios.find((s) => s.id === selectedScenarioId) ?? LIVE_SCENARIO
   const isLiveMode = selectedScenario.id === "live"
+
+  useEffect(() => {
+    loadMarketData(selectedScenario)
+  }, [selectedScenario.id, selectedScenario.start_date, selectedScenario.end_date])
+
+  useEffect(() => {
+    if (!userId) return
+    loadScenarioPortfolio(userId, selectedScenario.id)
+  }, [userId, selectedScenario.id])
+
+  const handleSetBalance = async () => {
+    if (!userId) return
+    const value = Number(balanceInput)
+    if (!Number.isFinite(value) || value < 10000 || value > 10000000) {
+      setBalanceError("Enter an amount between ₹10,000 and ₹1,00,00,000.")
+      return
+    }
+
+    setBalanceError(null)
+    setIsSettingBalance(true)
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/scenario/${selectedScenario.id}/set-balance`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ starting_balance: value }),
+        }
+      )
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.detail ?? `Request failed with status ${res.status}`)
+      }
+      setScenarioPortfolio(await res.json())
+    } catch (err) {
+      setBalanceError(err instanceof Error ? err.message : "Something went wrong setting your balance.")
+    } finally {
+      setIsSettingBalance(false)
+    }
+  }
+
+  const handleResetScenario = async () => {
+    if (!userId) return
+    if (!window.confirm("Reset this scenario? All trades will be cleared and balance restored.")) return
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/scenario/${selectedScenario.id}/reset`,
+        { method: "POST" }
+      )
+      if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
+      await loadScenarioPortfolio(userId, selectedScenario.id)
+      setResult(null)
+      setResultScenarioName(null)
+    } catch {
+      setError("Something went wrong resetting this scenario. Please try again.")
+    }
+  }
 
   const selectedStockInfo = MARKET_STOCKS.find((s) => s.ticker === selectedStock)
   const currentPrice = marketPrices?.[selectedStock]?.price ?? selectedStockInfo?.fallbackPrice ?? 0
@@ -186,8 +244,8 @@ export default function SimulatePage() {
       setError("Please complete onboarding before simulating trades.")
       return
     }
-    if (currentSavings === null) {
-      setError("Still loading your account details. Please try again in a moment.")
+    if (!scenarioPortfolio) {
+      setError("Still loading your scenario portfolio. Please try again in a moment.")
       return
     }
     if (!selectedStock || quantity <= 0) {
@@ -221,7 +279,7 @@ export default function SimulatePage() {
             tickers: [selectedStock],
             start_date: formatDate(simStart),
             end_date: formatDate(simEnd),
-            starting_cash: currentSavings,
+            starting_cash: scenarioPortfolio.virtual_cash,
             trades: [
               {
                 ticker: selectedStock,
@@ -231,6 +289,7 @@ export default function SimulatePage() {
               },
             ],
             benchmark_ticker: "SPY",
+            scenario_id: selectedScenario.id,
           }),
         }
       )
@@ -242,7 +301,7 @@ export default function SimulatePage() {
       const data: SimulationResult = await res.json()
       setResult(data)
       setResultScenarioName(isLiveMode ? null : selectedScenario.name)
-      await refreshPortfolio(userId)
+      await loadScenarioPortfolio(userId, selectedScenario.id)
     } catch {
       setError("Something went wrong while running your simulation. Please try again.")
     } finally {
@@ -265,8 +324,13 @@ export default function SimulatePage() {
           {/* Virtual Cash Banner */}
           <div className="bg-[#3B5BDB] text-white rounded-2xl p-5 mb-8 flex items-center justify-between">
             <div>
-              <p className="text-blue-200 text-sm">Available Virtual Cash</p>
+              <p className="text-blue-200 text-sm">{selectedScenario.name} Balance</p>
               <p className="text-3xl font-bold mt-1">₹{availableCash.toLocaleString()}</p>
+              {scenarioPortfolio && (
+                <p className="text-blue-200 text-xs mt-1">
+                  Started with ₹{scenarioPortfolio.starting_balance.toLocaleString()}
+                </p>
+              )}
             </div>
             <div className="text-right">
               <p className="text-blue-200 text-sm">Total Invested</p>
@@ -325,6 +389,46 @@ export default function SimulatePage() {
 
             {/* Trade Form + Results */}
             <div className="space-y-6">
+              {scenarioPortfolio && !scenarioPortfolio.is_started && (
+                <div className="bg-white rounded-2xl shadow-sm p-6">
+                  <h2 className="font-semibold text-gray-900 mb-1">
+                    Set your starting balance for this scenario
+                  </h2>
+                  <div className="flex gap-3 mt-3">
+                    <div className="relative flex-1">
+                      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        min={10000}
+                        max={10000000}
+                        value={balanceInput}
+                        onChange={(e) => setBalanceInput(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B5BDB] bg-[#FAF7F0]"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSetBalance}
+                      disabled={isSettingBalance}
+                      className="shrink-0 bg-[#3B5BDB] text-white rounded-xl px-5 py-3 text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSettingBalance ? "Setting..." : "Set Balance"}
+                    </button>
+                  </div>
+                  {balanceError && (
+                    <p className="text-xs text-red-500 mt-2">{balanceError}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-3">
+                    This cannot be changed once you make your first trade.
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1 italic">
+                    Tip: Use the same balance across scenarios to compare performance fairly.
+                  </p>
+                </div>
+              )}
+
               <div className="bg-white rounded-2xl shadow-sm p-6">
                 <h2 className="font-semibold text-gray-900 mb-5">Place a Trade</h2>
 
@@ -381,7 +485,9 @@ export default function SimulatePage() {
 
                   <div className="bg-gray-50 rounded-xl p-4">
                     <div className="flex justify-between text-sm mb-2">
-                      <span className="text-gray-500">Current Price</span>
+                      <span className="text-gray-500">
+                        {isLiveMode ? "Current Price" : "Price at Start of Period"}
+                      </span>
                       <span className="font-medium text-gray-900">₹{currentPrice.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-sm mb-2">
@@ -396,7 +502,7 @@ export default function SimulatePage() {
 
                   <button
                     onClick={handleConfirmTrade}
-                    disabled={isLoading || !selectedStock || quantity <= 0 || !userId || currentSavings === null}
+                    disabled={isLoading || !selectedStock || quantity <= 0 || !userId || !scenarioPortfolio}
                     className="w-full bg-[#3B5BDB] text-white rounded-xl py-3 font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isLoading ? "Placing Trade..." : "Confirm Trade"}
@@ -461,6 +567,14 @@ export default function SimulatePage() {
                         : `Your trade underperformed SPY by ${Math.abs(result.metrics.outperformance_pct).toFixed(2)}%`}
                     </p>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={handleResetScenario}
+                    className="mt-4 w-full text-sm font-medium text-red-500 hover:text-red-600 text-center"
+                  >
+                    Reset this scenario
+                  </button>
                 </div>
               )}
             </div>
@@ -468,7 +582,11 @@ export default function SimulatePage() {
             {/* Market Watch */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <h2 className="font-semibold text-gray-900">Market Watch</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Delayed 15 min</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {isLiveMode
+                  ? "Delayed 15 min"
+                  : `Period Return${marketPrices ? ` · ${Object.values(marketPrices)[0]?.period ?? ""}` : ""}`}
+              </p>
               <div className="space-y-3 mt-5">
                 {MARKET_STOCKS.map((stock) => {
                   const live = marketPrices?.[stock.ticker]

@@ -339,8 +339,8 @@ export default function SimulatePage() {
             {/* Market Watch */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <h2 className="font-semibold text-gray-900">Market Watch</h2>
-              <p className="text-xs text-gray-400 mb-5">Delayed 15 min</p>
-              <div className="space-y-3">
+              <p className="text-xs text-gray-400 mt-0.5">Delayed 15 min</p>
+              <div className="space-y-3 mt-5">
                 {MARKET_STOCKS.map((stock) => {
                   const live = marketPrices?.[stock.ticker]
                   const price = live?.price ?? stock.fallbackPrice

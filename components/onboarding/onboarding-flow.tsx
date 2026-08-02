@@ -5,15 +5,24 @@ import { ArrowLeft, ArrowRight, Sparkles, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ProgressBar } from "./progress-bar"
 import { StepPersonal } from "./step-personal"
+import { StepFinancial } from "./step-financial"
 import { StepGoals } from "./step-goals"
 import { StepRisk } from "./step-risk"
 import { STEPS, type OnboardingData } from "./types"
 
 const STEP_SUBTITLES = [
   "A few basics so we can tailor your experience.",
+  "Help us understand your savings and investing capacity.",
   "Pick the objective that matters most to you right now.",
   "Tell us how much market movement you're comfortable with.",
 ]
+
+const TIME_HORIZON_YEARS: Record<string, number> = {
+  under2: 1.5,
+  "2to5": 3.5,
+  "5to10": 7.5,
+  "10plus": 15.0,
+}
 
 export function OnboardingFlow() {
   const [step, setStep] = useState(0)
@@ -27,6 +36,12 @@ export function OnboardingFlow() {
     currentSavings: "",
     goal: "",
     riskLevel: 3,
+    monthlyExpenses: "",
+    dependents: 0,
+    employmentType: "",
+    existingInvestments: false,
+    timeHorizon: "",
+    investablePct: 20,
   })
   const router = useRouter()
   const update = (patch: Partial<OnboardingData>) =>
@@ -37,10 +52,13 @@ export function OnboardingFlow() {
       ? data.name.trim() !== "" &&
         data.age !== "" &&
         data.monthlyIncome !== "" &&
-        data.currentSavings !== ""
+        data.monthlyExpenses !== "" &&
+        data.employmentType !== ""
       : step === 1
-        ? data.goal !== ""
-        : true
+        ? data.currentSavings !== ""
+        : step === 2
+          ? data.goal !== "" && data.timeHorizon !== ""
+          : true
 
   const handleFinish = async () => {
     setError(null)
@@ -56,6 +74,9 @@ export function OnboardingFlow() {
           age: Number(data.age),
           monthly_income: Number(data.monthlyIncome),
           current_savings: Number(data.currentSavings),
+          dependents: data.dependents,
+          employment_type: data.employmentType,
+          existing_investments: data.existingInvestments,
         }),
       })
       if (!userRes.ok) {
@@ -72,6 +93,8 @@ export function OnboardingFlow() {
           current_savings: Number(data.currentSavings),
           investment_goal: data.goal,
           risk_tolerance: data.riskLevel,
+          time_horizon_years: TIME_HORIZON_YEARS[data.timeHorizon] ?? 10.0,
+          pct_income_investable: data.investablePct,
         }),
       })
       if (!riskRes.ok) {
@@ -133,8 +156,9 @@ export function OnboardingFlow() {
 
       <div className="mt-7">
         {step === 0 && <StepPersonal data={data} update={update} />}
-        {step === 1 && <StepGoals data={data} update={update} />}
-        {step === 2 && <StepRisk data={data} update={update} />}
+        {step === 1 && <StepFinancial data={data} update={update} />}
+        {step === 2 && <StepGoals data={data} update={update} />}
+        {step === 3 && <StepRisk data={data} update={update} />}
       </div>
 
       {error && (

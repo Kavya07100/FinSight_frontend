@@ -13,7 +13,6 @@ import {
   Settings,
   TrendingUp,
 } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 
 const navItems = [
@@ -68,14 +67,6 @@ export function Sidebar() {
           )
         })}
       </nav>
-
-      <div className="flex items-center border-t border-sidebar-border px-4 py-4">
-        <Avatar className="h-9 w-9">
-          <AvatarFallback className="bg-primary text-sm font-semibold text-primary-foreground">
-            KV
-          </AvatarFallback>
-        </Avatar>
-      </div>
     </aside>
   )
 }

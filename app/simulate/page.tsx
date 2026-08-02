@@ -3,15 +3,17 @@
 import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/dashboard/sidebar"
 
+// fallbackPrice/fallbackChangePct are used until GET /market/prices resolves,
+// and if that fetch fails outright.
 const MARKET_STOCKS = [
-  { name: "Reliance Industries", symbol: "RELIANCE", ticker: "RELIANCE.NS" },
-  { name: "HDFC Bank", symbol: "HDFCBANK", ticker: "HDFCBANK.NS" },
-  { name: "Infosys", symbol: "INFY", ticker: "INFY.NS" },
-  { name: "Tata Motors", symbol: "TATAMOTORS", ticker: "TMPV.NS" },
-  { name: "Nifty 50 ETF", symbol: "NIFTYBEES", ticker: "NIFTYBEES.NS" },
-  { name: "State Bank of India", symbol: "SBIN", ticker: "SBIN.NS" },
-  { name: "Wipro", symbol: "WIPRO", ticker: "WIPRO.NS" },
-  { name: "Bajaj Finance", symbol: "BAJFINANCE", ticker: "BAJFINANCE.NS" },
+  { name: "Reliance Industries", symbol: "RELIANCE", ticker: "RELIANCE.NS", fallbackPrice: 2820, fallbackChangePct: 1.2 },
+  { name: "HDFC Bank", symbol: "HDFCBANK", ticker: "HDFCBANK.NS", fallbackPrice: 1624, fallbackChangePct: 0.8 },
+  { name: "Infosys", symbol: "INFY", ticker: "INFY.NS", fallbackPrice: 2120, fallbackChangePct: -0.4 },
+  { name: "Tata Motors", symbol: "TATAMOTORS", ticker: "TMPV.NS", fallbackPrice: 945, fallbackChangePct: 2.1 },
+  { name: "Nifty 50 ETF", symbol: "NIFTYBEES", ticker: "NIFTYBEES.NS", fallbackPrice: 248, fallbackChangePct: 0.6 },
+  { name: "State Bank of India", symbol: "SBIN", ticker: "SBIN.NS", fallbackPrice: 498, fallbackChangePct: -0.9 },
+  { name: "Wipro", symbol: "WIPRO", ticker: "WIPRO.NS", fallbackPrice: 542, fallbackChangePct: 1.5 },
+  { name: "Bajaj Finance", symbol: "BAJFINANCE", ticker: "BAJFINANCE.NS", fallbackPrice: 7240, fallbackChangePct: 0.3 },
 ] as const
 
 interface MarketPrice {
@@ -58,7 +60,6 @@ export default function SimulatePage() {
   const [result, setResult] = useState<SimulationResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [marketPrices, setMarketPrices] = useState<Record<string, MarketPrice> | null>(null)
-  const [isLoadingPrices, setIsLoadingPrices] = useState(true)
 
   useEffect(() => {
     const storedUserId = localStorage.getItem("finsight_user_id")
@@ -72,15 +73,14 @@ export default function SimulatePage() {
   }, [])
 
   const loadMarketPrices = async () => {
-    setIsLoadingPrices(true)
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/market/prices`)
       if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
       setMarketPrices(await res.json())
     } catch {
+      // Leave marketPrices null -- the UI falls back to each stock's
+      // hardcoded fallbackPrice/fallbackChangePct.
       setMarketPrices(null)
-    } finally {
-      setIsLoadingPrices(false)
     }
   }
 
@@ -106,7 +106,7 @@ export default function SimulatePage() {
   const availableCash = (currentSavings ?? 0) - totalInvested
 
   const selectedStockInfo = MARKET_STOCKS.find((s) => s.ticker === selectedStock)
-  const currentPrice = marketPrices?.[selectedStock]?.price ?? 0
+  const currentPrice = marketPrices?.[selectedStock]?.price ?? selectedStockInfo?.fallbackPrice ?? 0
   const estimatedTotal = currentPrice * quantity
   const afterTradeCash =
     action === "buy" ? availableCash - estimatedTotal : availableCash + estimatedTotal
@@ -338,15 +338,13 @@ export default function SimulatePage() {
 
             {/* Market Watch */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="font-semibold text-gray-900">Market Watch</h2>
-                <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                  15-min delay
-                </span>
-              </div>
+              <h2 className="font-semibold text-gray-900">Market Watch</h2>
+              <p className="text-xs text-gray-400 mb-5">Delayed 15 min</p>
               <div className="space-y-3">
                 {MARKET_STOCKS.map((stock) => {
                   const live = marketPrices?.[stock.ticker]
+                  const price = live?.price ?? stock.fallbackPrice
+                  const changePct = live?.change_pct ?? stock.fallbackChangePct
                   return (
                     <div
                       key={stock.symbol}
@@ -362,19 +360,11 @@ export default function SimulatePage() {
                         <p className="text-xs text-gray-400">{stock.symbol}</p>
                       </div>
                       <div className="text-right">
-                        {isLoadingPrices ? (
-                          <p className="text-sm text-gray-400">Loading…</p>
-                        ) : live ? (
-                          <>
-                            <p className="text-sm font-medium text-gray-900">₹{live.price.toLocaleString()}</p>
-                            <p className={`text-xs font-medium ${live.change_pct >= 0 ? "text-green-600" : "text-red-500"}`}>
-                              {live.change_pct >= 0 ? "+" : ""}
-                              {live.change_pct.toFixed(2)}%
-                            </p>
-                          </>
-                        ) : (
-                          <p className="text-sm text-gray-400">Unavailable</p>
-                        )}
+                        <p className="text-sm font-medium text-gray-900">₹{price.toLocaleString()}</p>
+                        <p className={`text-xs font-medium ${changePct >= 0 ? "text-green-600" : "text-red-500"}`}>
+                          {changePct >= 0 ? "+" : ""}
+                          {changePct.toFixed(1)}%
+                        </p>
                       </div>
                     </div>
                   )

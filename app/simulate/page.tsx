@@ -318,7 +318,7 @@ export default function SimulatePage() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Simulate a Trade</h1>
-            <p className="text-gray-500 mt-1">Practice investing with your virtual capital — no real money involved</p>
+            <p className="text-gray-500 mt-1">Test investment strategies against historical market data — see what would have worked</p>
           </div>
 
           {/* Virtual Cash Banner */}

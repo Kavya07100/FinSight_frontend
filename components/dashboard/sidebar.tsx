@@ -20,8 +20,8 @@ const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { label: "Portfolio", icon: PieChart, href: "/portfolio" },
   { label: "Chat", icon: MessageSquare, href: "/chat" },
-  { label: "Simulate", icon: Activity, href: "/simulate" },
-  { label: "Challenge", icon: Trophy, href: "/challenge" },
+  { label: "Simulate", icon: Activity, href: "/simulate", subtitle: "Strategy backtesting" },
+  { label: "Challenge", icon: Trophy, href: "/challenge", subtitle: "Blind scenario trading" },
   { label: "Backtest", icon: History, href: "/backtest" },
   { label: "Learning Path", icon: GraduationCap, href: "/learning" },
   { label: "Settings", icon: Settings, href: "/settings" },
@@ -42,12 +42,13 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-2" aria-label="Main navigation">
-        {navItems.map(({ label, icon: Icon, href }) => {
+        {navItems.map(({ label, icon: Icon, href, subtitle }) => {
           const isActive = pathname === href
           return (
             <Link
               key={label}
               href={href}
+              title={subtitle}
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
@@ -56,8 +57,13 @@ export function Sidebar() {
                   : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
               )}
             >
-              <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-              {label}
+              <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+              <span className="flex flex-col leading-tight">
+                <span>{label}</span>
+                {subtitle && (
+                  <span className="text-xs font-normal text-muted-foreground/70">{subtitle}</span>
+                )}
+              </span>
             </Link>
           )
         })}

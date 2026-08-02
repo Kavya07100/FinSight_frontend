@@ -608,9 +608,9 @@ export default function ChallengePage() {
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
                   <Trophy className="h-7 w-7" aria-hidden="true" />
                 </div>
-                <h1 className="mt-4 text-3xl font-bold text-gray-900">Challenge Mode</h1>
+                <h1 className="mt-4 text-3xl font-bold text-gray-900">Trading Challenge</h1>
                 <p className="mt-2 text-gray-500">
-                  Trade blind through a real historical market period, day by day — no dates, no hindsight.
+                  Trade day-by-day without knowing the market period — build real decision-making discipline
                 </p>
               </div>
 

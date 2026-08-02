@@ -78,6 +78,13 @@ const NEXT_DIFFICULTY: Record<string, string> = {
   expert: "expert",
 }
 
+const PREV_DIFFICULTY: Record<string, string | null> = {
+  easy: null,
+  medium: "easy",
+  hard: "medium",
+  expert: "hard",
+}
+
 function Metric({ label, value, colorClass }: { label: string; value: string; colorClass?: string }) {
   return (
     <div className="bg-gray-50 rounded-xl p-4">
@@ -106,6 +113,7 @@ export default function ChallengePage() {
 
   const [isAdvancing, setIsAdvancing] = useState(false)
   const [isRevealing, setIsRevealing] = useState(false)
+  const [isAbandoning, setIsAbandoning] = useState(false)
 
   useEffect(() => {
     const storedUserId = localStorage.getItem("finsight_user_id")
@@ -235,6 +243,30 @@ export default function ChallengePage() {
     handleStart(difficulty)
   }
 
+  const handleAbandon = async () => {
+    if (!userId || !session) return
+    if (!window.confirm("Abandon this challenge? Your progress will be lost and you can start a new one.")) {
+      return
+    }
+    setIsAbandoning(true)
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/challenge/${session.session_id}/abandon`,
+        { method: "POST" }
+      )
+      if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
+      setSession(null)
+      setRevealData(null)
+      setSelectedTicker(null)
+      setTradeQuantity(0)
+      setTradeError(null)
+    } catch {
+      setError("Something went wrong abandoning this challenge. Please try again.")
+    } finally {
+      setIsAbandoning(false)
+    }
+  }
+
   const stockList = session
     ? Object.entries(session.prices).map(([name, p]) => ({ name, ...p }))
     : []
@@ -321,6 +353,15 @@ export default function ChallengePage() {
               </div>
 
               <div className="flex gap-3">
+                {PREV_DIFFICULTY[revealData.difficulty] && (
+                  <button
+                    type="button"
+                    onClick={() => handlePlayAgain(PREV_DIFFICULTY[revealData.difficulty]!)}
+                    className="flex-1 border-2 border-gray-300 text-gray-700 rounded-xl py-3 font-medium text-sm hover:bg-gray-50 transition-colors"
+                  >
+                    ← Try Easier ({DIFFICULTY_LABEL[PREV_DIFFICULTY[revealData.difficulty]!]})
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handlePlayAgain(revealData.difficulty)}
@@ -333,7 +374,7 @@ export default function ChallengePage() {
                   onClick={() => handlePlayAgain(NEXT_DIFFICULTY[revealData.difficulty])}
                   className="flex-1 border-2 border-[#3B5BDB] text-[#3B5BDB] rounded-xl py-3 font-medium text-sm hover:bg-blue-50 transition-colors"
                 >
-                  Try Harder Difficulty
+                  Try Harder →
                 </button>
               </div>
             </div>
@@ -347,14 +388,24 @@ export default function ChallengePage() {
                   <p className="text-xs text-gray-400">
                     Day {session.day_number} of {session.total_days}
                   </p>
-                  <span
-                    className={cn(
-                      "mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
-                      DIFFICULTY_BADGE[session.difficulty]
-                    )}
-                  >
-                    {DIFFICULTY_LABEL[session.difficulty] ?? session.difficulty}
-                  </span>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+                        DIFFICULTY_BADGE[session.difficulty]
+                      )}
+                    >
+                      {DIFFICULTY_LABEL[session.difficulty] ?? session.difficulty}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAbandon}
+                      disabled={isAbandoning}
+                      className="text-xs font-medium text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                    >
+                      {isAbandoning ? "Abandoning..." : "Abandon & Start New"}
+                    </button>
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-gray-400">Virtual Cash</p>

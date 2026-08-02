@@ -13,3 +13,7 @@ __v0_jsx-dev-runtime.ts
 node_modules
 .next/
 .DS_Store
+
+# This project uses pnpm (pnpm-lock.yaml) -- npm's lockfile drifting out
+# of sync with it was the root cause of a Vercel deploy failure.
+package-lock.json

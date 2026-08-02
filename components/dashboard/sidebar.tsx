@@ -69,16 +69,12 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="flex items-center gap-3 border-t border-sidebar-border px-4 py-4">
+      <div className="flex items-center border-t border-sidebar-border px-4 py-4">
         <Avatar className="h-9 w-9">
           <AvatarFallback className="bg-primary text-sm font-semibold text-primary-foreground">
             KV
           </AvatarFallback>
         </Avatar>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-sidebar-foreground">Kavya Bisht</p>
-          <p className="truncate text-xs text-muted-foreground">Balanced Investor</p>
-        </div>
       </div>
     </aside>
   )

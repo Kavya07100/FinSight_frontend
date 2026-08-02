@@ -4,15 +4,21 @@ import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/dashboard/sidebar"
 
 const MARKET_STOCKS = [
-  { name: "Reliance Industries", symbol: "RELIANCE", ticker: "RELIANCE.NS", price: 2820, change: "+1.2%" },
-  { name: "HDFC Bank", symbol: "HDFCBANK", ticker: "HDFCBANK.NS", price: 1624, change: "+0.8%" },
-  { name: "Infosys", symbol: "INFY", ticker: "INFY.NS", price: 2120, change: "-0.4%" },
-  { name: "Tata Motors", symbol: "TATAMOTORS", ticker: "TMPV.NS", price: 945, change: "+2.1%" },
-  { name: "Nifty 50 ETF", symbol: "NIFTYBEES", ticker: "NIFTYBEES.NS", price: 248, change: "+0.6%" },
-  { name: "State Bank of India", symbol: "SBIN", ticker: "SBIN.NS", price: 498, change: "-0.9%" },
-  { name: "Wipro", symbol: "WIPRO", ticker: "WIPRO.NS", price: 542, change: "+1.5%" },
-  { name: "Bajaj Finance", symbol: "BAJFINANCE", ticker: "BAJFINANCE.NS", price: 7240, change: "+0.3%" },
+  { name: "Reliance Industries", symbol: "RELIANCE", ticker: "RELIANCE.NS" },
+  { name: "HDFC Bank", symbol: "HDFCBANK", ticker: "HDFCBANK.NS" },
+  { name: "Infosys", symbol: "INFY", ticker: "INFY.NS" },
+  { name: "Tata Motors", symbol: "TATAMOTORS", ticker: "TMPV.NS" },
+  { name: "Nifty 50 ETF", symbol: "NIFTYBEES", ticker: "NIFTYBEES.NS" },
+  { name: "State Bank of India", symbol: "SBIN", ticker: "SBIN.NS" },
+  { name: "Wipro", symbol: "WIPRO", ticker: "WIPRO.NS" },
+  { name: "Bajaj Finance", symbol: "BAJFINANCE", ticker: "BAJFINANCE.NS" },
 ] as const
+
+interface MarketPrice {
+  price: number
+  change_pct: number
+  name: string
+}
 
 interface BenchmarkMetrics {
   ticker: string
@@ -51,6 +57,8 @@ export default function SimulatePage() {
   const [isLoading, setIsLoading] = useState(false)
   const [result, setResult] = useState<SimulationResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [marketPrices, setMarketPrices] = useState<Record<string, MarketPrice> | null>(null)
+  const [isLoadingPrices, setIsLoadingPrices] = useState(true)
 
   useEffect(() => {
     const storedUserId = localStorage.getItem("finsight_user_id")
@@ -60,7 +68,21 @@ export default function SimulatePage() {
     } else {
       setError("Please complete onboarding before simulating trades.")
     }
+    loadMarketPrices()
   }, [])
+
+  const loadMarketPrices = async () => {
+    setIsLoadingPrices(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/market/prices`)
+      if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
+      setMarketPrices(await res.json())
+    } catch {
+      setMarketPrices(null)
+    } finally {
+      setIsLoadingPrices(false)
+    }
+  }
 
   const loadUserData = async (id: string) => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL
@@ -84,7 +106,7 @@ export default function SimulatePage() {
   const availableCash = (currentSavings ?? 0) - totalInvested
 
   const selectedStockInfo = MARKET_STOCKS.find((s) => s.ticker === selectedStock)
-  const currentPrice = selectedStockInfo?.price ?? 0
+  const currentPrice = marketPrices?.[selectedStock]?.price ?? 0
   const estimatedTotal = currentPrice * quantity
   const afterTradeCash =
     action === "buy" ? availableCash - estimatedTotal : availableCash + estimatedTotal
@@ -316,30 +338,47 @@ export default function SimulatePage() {
 
             {/* Market Watch */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
-              <h2 className="font-semibold text-gray-900 mb-5">Market Watch</h2>
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="font-semibold text-gray-900">Market Watch</h2>
+                <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                  15-min delay
+                </span>
+              </div>
               <div className="space-y-3">
-                {MARKET_STOCKS.map((stock) => (
-                  <div
-                    key={stock.symbol}
-                    onClick={() => setSelectedStock(stock.ticker)}
-                    className={`flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-colors ${
-                      stock.ticker === selectedStock
-                        ? "border-[#3B5BDB] bg-blue-50"
-                        : "border-transparent hover:bg-gray-50 hover:border-gray-200"
-                    }`}
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{stock.name}</p>
-                      <p className="text-xs text-gray-400">{stock.symbol}</p>
+                {MARKET_STOCKS.map((stock) => {
+                  const live = marketPrices?.[stock.ticker]
+                  return (
+                    <div
+                      key={stock.symbol}
+                      onClick={() => setSelectedStock(stock.ticker)}
+                      className={`flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-colors ${
+                        stock.ticker === selectedStock
+                          ? "border-[#3B5BDB] bg-blue-50"
+                          : "border-transparent hover:bg-gray-50 hover:border-gray-200"
+                      }`}
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{stock.name}</p>
+                        <p className="text-xs text-gray-400">{stock.symbol}</p>
+                      </div>
+                      <div className="text-right">
+                        {isLoadingPrices ? (
+                          <p className="text-sm text-gray-400">Loading…</p>
+                        ) : live ? (
+                          <>
+                            <p className="text-sm font-medium text-gray-900">₹{live.price.toLocaleString()}</p>
+                            <p className={`text-xs font-medium ${live.change_pct >= 0 ? "text-green-600" : "text-red-500"}`}>
+                              {live.change_pct >= 0 ? "+" : ""}
+                              {live.change_pct.toFixed(2)}%
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-400">Unavailable</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">₹{stock.price.toLocaleString()}</p>
-                      <p className={`text-xs font-medium ${stock.change.startsWith("+") ? "text-green-600" : "text-red-500"}`}>
-                        {stock.change}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 

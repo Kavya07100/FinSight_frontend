@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { ChatHeader } from "@/components/chat/chat-header"
 import { ChatMessage } from "@/components/chat/chat-message"
@@ -12,18 +12,36 @@ interface Message {
   content: string
 }
 
-const initialMessages: Message[] = [
-  {
+function greetingMessage(name: string): Message {
+  return {
     id: 1,
     type: "ai",
-    content:
-      "Hi Kavya! I'm your FinSight assistant. Ask me anything about investing, markets, or your portfolio.",
-  },
-]
+    content: `Hi ${name}! I'm your FinSight assistant. Ask me anything about investing, markets, or your portfolio.`,
+  }
+}
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages)
+  const [messages, setMessages] = useState<Message[]>([greetingMessage("there")])
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    const userId = localStorage.getItem("finsight_user_id")
+    if (!userId) return
+
+    const loadUser = async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${userId}`)
+        if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
+        const user = await res.json()
+        const firstName = user.full_name ? user.full_name.split(" ")[0] : "there"
+        setMessages([greetingMessage(firstName)])
+      } catch {
+        setMessages([greetingMessage("there")])
+      }
+    }
+
+    loadUser()
+  }, [])
 
   const handleSend = async (question: string) => {
     setMessages((prev) => [

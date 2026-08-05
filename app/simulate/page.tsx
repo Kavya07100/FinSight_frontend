@@ -43,11 +43,11 @@ const LIVE_SCENARIO: MarketScenario = {
   id: "live",
   name: "Live Simulation",
   difficulty: "Live",
-  description: "Most recent 12 months of real market data",
-  context: "Simulate using actual current market conditions. This uses real NSE price data from the past 12 months — the same stocks you see in Market Watch today.",
+  description: "Most recent 12 months of real NSE market data",
+  context: "Uses actual historical prices from the past 12 months stored in our database. Market Watch shows 15-minute delayed live prices during market hours. Simulation runs against stored daily closing prices.",
   start_date: "",
   end_date: "",
-  hint: "No historical scenario — practice with what's happening right now",
+  hint: "Most current data available — reflects recent real market conditions",
   color: "blue",
   badge_text: "LIVE",
 }
@@ -113,6 +113,9 @@ export default function SimulatePage() {
   const [balanceInput, setBalanceInput] = useState("100000")
   const [isSettingBalance, setIsSettingBalance] = useState(false)
   const [balanceError, setBalanceError] = useState<string | null>(null)
+  // NIFTYBEES.NS (Nifty 50) is the default benchmark for Indian users; SPY
+  // (S&P 500) is offered as the global alternative.
+  const [benchmarkTicker, setBenchmarkTicker] = useState<"SPY" | "NIFTYBEES.NS">("NIFTYBEES.NS")
 
   useEffect(() => {
     const storedUserId = localStorage.getItem("finsight_user_id")
@@ -233,6 +236,10 @@ export default function SimulatePage() {
     }
   }
 
+  // Prefer the ticker the simulation actually ran against; falls back to
+  // the current selector state before a result exists.
+  const benchmarkLabel = (result?.metrics.benchmark?.ticker ?? benchmarkTicker).replace(".NS", "")
+
   const selectedStockInfo = MARKET_STOCKS.find((s) => s.ticker === selectedStock)
   const currentPrice = marketPrices?.[selectedStock]?.price ?? selectedStockInfo?.fallbackPrice ?? 0
   const estimatedTotal = currentPrice * quantity
@@ -288,7 +295,7 @@ export default function SimulatePage() {
                 trade_date: formatDate(tradeDate),
               },
             ],
-            benchmark_ticker: "SPY",
+            benchmark_ticker: benchmarkTicker,
             scenario_id: selectedScenario.id,
           }),
         }
@@ -510,6 +517,32 @@ export default function SimulatePage() {
                     </div>
                   </div>
 
+                  <div>
+                    <label className="text-sm text-gray-500 mb-2 block">Compare against</label>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="benchmark"
+                          checked={benchmarkTicker === "SPY"}
+                          onChange={() => setBenchmarkTicker("SPY")}
+                          className="accent-[#3B5BDB]"
+                        />
+                        SPY (S&amp;P 500 — Global benchmark)
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="benchmark"
+                          checked={benchmarkTicker === "NIFTYBEES.NS"}
+                          onChange={() => setBenchmarkTicker("NIFTYBEES.NS")}
+                          className="accent-[#3B5BDB]"
+                        />
+                        NIFTYBEES (Nifty 50 — Indian benchmark)
+                      </label>
+                    </div>
+                  </div>
+
                   <button
                     onClick={handleConfirmTrade}
                     disabled={isLoading || !selectedStock || quantity <= 0 || !userId || !scenarioPortfolio}
@@ -557,7 +590,7 @@ export default function SimulatePage() {
                       </p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-xs text-gray-500">vs Benchmark (SPY)</p>
+                      <p className="text-xs text-gray-500">vs Benchmark ({benchmarkLabel})</p>
                       <p className="text-lg font-bold text-gray-900 mt-1">
                         {result.metrics.benchmark
                           ? `${result.metrics.benchmark.total_return_pct.toFixed(2)}%`
@@ -573,8 +606,8 @@ export default function SimulatePage() {
                       }`}
                     >
                       {result.metrics.outperformance_pct >= 0
-                        ? `Your trade outperformed SPY by ${result.metrics.outperformance_pct.toFixed(2)}%`
-                        : `Your trade underperformed SPY by ${Math.abs(result.metrics.outperformance_pct).toFixed(2)}%`}
+                        ? `Your trade outperformed ${benchmarkLabel} by ${result.metrics.outperformance_pct.toFixed(2)}%`
+                        : `Your trade underperformed ${benchmarkLabel} by ${Math.abs(result.metrics.outperformance_pct).toFixed(2)}%`}
                     </p>
                   )}
 

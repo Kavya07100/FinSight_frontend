@@ -13,15 +13,54 @@ const GOALS = [
 ]
 const RISK_LEVELS = ["Very Conservative", "Conservative", "Balanced", "Aggressive", "Very Aggressive"]
 
+const DEPENDENT_OPTIONS = [0, 1, 2, 3, 4, 5] as const
+
+// values match onboarding's step-personal.tsx employment type ids
+const EMPLOYMENT_TYPES = [
+  { value: "salaried", label: "Salaried" },
+  { value: "freelancer", label: "Freelancer" },
+  { value: "business", label: "Business" },
+  { value: "student", label: "Student" },
+]
+
+// values match onboarding's step-goals.tsx time horizon ids
+const TIME_HORIZONS = [
+  { value: "under2", label: "Under 2 years" },
+  { value: "2to5", label: "2-5 years" },
+  { value: "5to10", label: "5-10 years" },
+  { value: "10plus", label: "10+ years" },
+]
+
+// Midpoint years sent to the backend for each bucket -- mirrors
+// onboarding-flow.tsx's TIME_HORIZON_YEARS.
+const TIME_HORIZON_YEARS: Record<string, number> = {
+  under2: 1.5,
+  "2to5": 3.5,
+  "5to10": 7.5,
+  "10plus": 15.0,
+}
+
+// Inverse of the above: bucket a stored time_horizon_years back into an id.
+const timeHorizonFromYears = (years: number): string => {
+  if (years < 2) return "under2"
+  if (years < 5) return "2to5"
+  if (years < 10) return "5to10"
+  return "10plus"
+}
+
 export default function SettingsPage() {
   const [userId, setUserId] = useState<string | null>(null)
 
   const [fullName, setFullName] = useState("")
   const [age, setAge] = useState("")
   const [monthlyIncome, setMonthlyIncome] = useState("")
+  const [monthlyExpenses, setMonthlyExpenses] = useState("")
   const [currentSavings, setCurrentSavings] = useState("")
+  const [dependents, setDependents] = useState(0)
+  const [employmentType, setEmploymentType] = useState("")
   const [investmentGoal, setInvestmentGoal] = useState(GOALS[0].value)
   const [riskTolerance, setRiskTolerance] = useState(3)
+  const [timeHorizon, setTimeHorizon] = useState("")
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -57,16 +96,22 @@ export default function SettingsPage() {
       setFullName(user.full_name ?? "")
       setAge(user.age != null ? String(user.age) : "")
       setMonthlyIncome(user.monthly_income != null ? String(user.monthly_income) : "")
+      setMonthlyExpenses(user.monthly_expenses != null ? String(user.monthly_expenses) : "")
       setCurrentSavings(user.current_savings != null ? String(user.current_savings) : "")
+      setDependents(user.dependents ?? 0)
+      setEmploymentType(user.employment_type ?? "")
 
-      // Investment goal / risk tolerance live on the risk profile, not the
-      // user record -- a missing risk profile (404) just means the
-      // Investment Preferences fields fall back to their defaults.
+      // Investment goal / risk tolerance / time horizon live on the risk
+      // profile, not the user record -- a missing risk profile (404) just
+      // means the Investment Preferences fields fall back to their defaults.
       const riskRes = await fetch(`${apiUrl}/users/${id}/risk-profile`)
       if (riskRes.ok) {
         const profile = await riskRes.json()
         if (profile.goal) setInvestmentGoal(profile.goal)
         if (profile.risk_tolerance_input) setRiskTolerance(profile.risk_tolerance_input)
+        if (profile.time_horizon_years != null) {
+          setTimeHorizon(timeHorizonFromYears(profile.time_horizon_years))
+        }
       }
     } catch {
       setError("Something went wrong while loading your profile. Please try again.")
@@ -91,9 +136,13 @@ export default function SettingsPage() {
           full_name: fullName,
           age: age === "" ? null : Number(age),
           monthly_income: monthlyIncome === "" ? null : Number(monthlyIncome),
+          monthly_expenses: monthlyExpenses === "" ? null : Number(monthlyExpenses),
           current_savings: currentSavings === "" ? null : Number(currentSavings),
+          dependents,
+          employment_type: employmentType === "" ? null : employmentType,
           investment_goal: investmentGoal,
           risk_tolerance: riskTolerance,
+          time_horizon_years: timeHorizon === "" ? null : TIME_HORIZON_YEARS[timeHorizon],
         }),
       })
 
@@ -202,6 +251,22 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div>
+                  <label className="text-sm text-gray-500 mb-1 block">Monthly Expenses</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      value={monthlyExpenses}
+                      onChange={(e) => setMonthlyExpenses(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-sm bg-[#FAF7F0] focus:outline-none focus:ring-2 focus:ring-[#3B5BDB]"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <label className="text-sm text-gray-500 mb-1 block">Current Savings</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
@@ -214,6 +279,44 @@ export default function SettingsPage() {
                       className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-sm bg-[#FAF7F0] focus:outline-none focus:ring-2 focus:ring-[#3B5BDB]"
                     />
                   </div>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-gray-500 mb-2 block">Number of Dependents</label>
+                <div className="flex flex-wrap gap-2">
+                  {DEPENDENT_OPTIONS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setDependents(n)}
+                      className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                        dependents === n
+                          ? "bg-[#3B5BDB] text-white border-[#3B5BDB]"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-[#3B5BDB]"
+                      }`}
+                    >
+                      {n === 5 ? "5+" : n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-gray-500 mb-2 block">Employment Type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {EMPLOYMENT_TYPES.map((type) => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => setEmploymentType(type.value)}
+                      className={`rounded-xl border py-2.5 text-sm font-medium transition-colors ${
+                        employmentType === type.value
+                          ? "bg-[#3B5BDB] text-white border-[#3B5BDB]"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-[#3B5BDB]"
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -252,6 +355,25 @@ export default function SettingsPage() {
                       }`}
                     >
                       {level}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-gray-500 mb-2 block">Time Horizon</label>
+                <div className="flex flex-wrap gap-2">
+                  {TIME_HORIZONS.map((horizon) => (
+                    <button
+                      key={horizon.value}
+                      type="button"
+                      onClick={() => setTimeHorizon(horizon.value)}
+                      className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                        timeHorizon === horizon.value
+                          ? "bg-[#3B5BDB] text-white border-[#3B5BDB]"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-[#3B5BDB]"
+                      }`}
+                    >
+                      {horizon.label}
                     </button>
                   ))}
                 </div>

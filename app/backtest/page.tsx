@@ -257,12 +257,6 @@ export default function BacktestPage() {
                   >
                     <option value="SIP (Monthly Investment)">SIP (Monthly Investment)</option>
                     <option value="Buy and Hold">Buy and Hold</option>
-                    <option value="Moving Average Crossover" disabled>
-                      Moving Average Crossover (Coming Soon)
-                    </option>
-                    <option value="RSI Based" disabled>
-                      RSI Based (Coming Soon)
-                    </option>
                   </select>
                 </div>
 

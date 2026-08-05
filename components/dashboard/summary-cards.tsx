@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card"
 
 interface SummaryCardsProps {
   portfolioValue?: number | null
-  portfolioValueSource?: "holdings" | "savings"
+  hasHoldings?: boolean
   riskCategory?: string | null
   totalXp?: number | null
   isLoading?: boolean
@@ -21,7 +21,7 @@ const formatCategory = (category: string) =>
 
 export function SummaryCards({
   portfolioValue,
-  portfolioValueSource = "savings",
+  hasHoldings = false,
   riskCategory,
   totalXp,
   isLoading,
@@ -38,11 +38,16 @@ export function SummaryCards({
           </span>
         </div>
         <p className="mt-3 text-3xl font-semibold tracking-tight">
-          {isLoading ? "—" : formatCurrency(portfolioValue ?? 0)}
+          {isLoading ? "—" : hasHoldings ? formatCurrency(portfolioValue ?? 0) : "₹0"}
         </p>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          {portfolioValueSource === "holdings" ? "Virtual holdings value" : "Starting savings"}
+          {hasHoldings ? "Virtual Portfolio Value" : "No investments yet"}
         </p>
+        {!isLoading && !hasHoldings && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Make your first trade in Simulate or Challenge
+          </p>
+        )}
       </Card>
 
       <Card className="gap-0 p-5">

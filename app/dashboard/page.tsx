@@ -21,8 +21,8 @@ interface StrategyModule {
 
 export default function DashboardPage() {
   const [firstName, setFirstName] = useState<string | undefined>(undefined)
-  const [portfolioValue, setPortfolioValue] = useState<number | null>(null)
-  const [portfolioValueSource, setPortfolioValueSource] = useState<"holdings" | "savings">("savings")
+  const [portfolioValue, setPortfolioValue] = useState<number>(0)
+  const [hasHoldings, setHasHoldings] = useState(false)
   const [riskCategory, setRiskCategory] = useState<string | null>(null)
   const [totalXp, setTotalXp] = useState<number | null>(null)
   const [dailyValues, setDailyValues] = useState<DailyValue[]>([])
@@ -52,12 +52,9 @@ export default function DashboardPage() {
       fetch(`${apiUrl}/users/${userId}/portfolio`),
     ])
 
-    let currentSavings: number | null = null
-
     if (userRes.status === "fulfilled" && userRes.value.ok) {
       const user = await userRes.value.json()
       setFirstName(user.full_name ? user.full_name.split(" ")[0] : undefined)
-      currentSavings = user.current_savings ?? null
     }
 
     if (riskRes.status === "fulfilled" && riskRes.value.ok) {
@@ -79,23 +76,17 @@ export default function DashboardPage() {
       setDailyValues(sim.metrics?.daily_values ?? [])
     }
 
-    // Prefer the real portfolio value (holdings marked to market); fall
-    // back to onboarding's current_savings only when there are no holdings
-    // yet (e.g. before the user's first simulated trade).
-    let holdingsValue: number | null = null
+    // The dashboard's "Total Portfolio Value" card only ever reflects real
+    // holdings (marked to market) -- onboarding's current_savings is never
+    // shown here, since it's not money the user has actually put to work.
     if (portfolioRes.status === "fulfilled" && portfolioRes.value.ok) {
       const portfolio = await portfolioRes.value.json()
-      if (portfolio.holdings && portfolio.holdings.length > 0) {
-        holdingsValue = portfolio.total_value
-      }
-    }
-
-    if (holdingsValue != null) {
-      setPortfolioValue(holdingsValue)
-      setPortfolioValueSource("holdings")
+      const totalValue = portfolio.total_value ?? 0
+      setPortfolioValue(totalValue)
+      setHasHoldings(totalValue > 0)
     } else {
-      setPortfolioValue(currentSavings)
-      setPortfolioValueSource("savings")
+      setPortfolioValue(0)
+      setHasHoldings(false)
     }
 
     setIsLoading(false)
@@ -109,7 +100,7 @@ export default function DashboardPage() {
           <Greeting firstName={firstName} />
           <SummaryCards
             portfolioValue={portfolioValue}
-            portfolioValueSource={portfolioValueSource}
+            hasHoldings={hasHoldings}
             riskCategory={riskCategory}
             totalXp={totalXp}
             isLoading={isLoading}

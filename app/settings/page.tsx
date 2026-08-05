@@ -3,7 +3,14 @@
 import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/dashboard/sidebar"
 
-const GOALS = ["Wealth building", "Retirement planning", "Short-term gains", "Learning basics"]
+// value must match what onboarding's step-goals.tsx sends as `goal` and what
+// the risk_profiles.goal column stores -- these are NOT the display labels.
+const GOALS = [
+  { value: "wealth-building", label: "Wealth building" },
+  { value: "retirement-planning", label: "Retirement planning" },
+  { value: "short-term-gains", label: "Short-term gains" },
+  { value: "learning-basics", label: "Learning basics" },
+]
 const RISK_LEVELS = ["Very Conservative", "Conservative", "Balanced", "Aggressive", "Very Aggressive"]
 
 export default function SettingsPage() {
@@ -13,7 +20,7 @@ export default function SettingsPage() {
   const [age, setAge] = useState("")
   const [monthlyIncome, setMonthlyIncome] = useState("")
   const [currentSavings, setCurrentSavings] = useState("")
-  const [investmentGoal, setInvestmentGoal] = useState(GOALS[0])
+  const [investmentGoal, setInvestmentGoal] = useState(GOALS[0].value)
   const [riskTolerance, setRiskTolerance] = useState(3)
 
   const [isLoading, setIsLoading] = useState(true)
@@ -224,8 +231,8 @@ export default function SettingsPage() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-[#FAF7F0] focus:outline-none focus:ring-2 focus:ring-[#3B5BDB]"
                 >
                   {GOALS.map((goal) => (
-                    <option key={goal} value={goal}>
-                      {goal}
+                    <option key={goal.value} value={goal.value}>
+                      {goal.label}
                     </option>
                   ))}
                 </select>

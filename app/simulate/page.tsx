@@ -300,6 +300,16 @@ export default function SimulatePage() {
 
       const data: SimulationResult = await res.json()
       setResult(data)
+
+      // Auto-trigger behavior analysis
+      const logId = data.id  // simulation log ID from response
+      if (logId && userId) {
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/simulate/${logId}/analyze`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }).catch(() => {})  // fire and forget, don't block UI
+      }
+
       setResultScenarioName(isLiveMode ? null : selectedScenario.name)
       await loadScenarioPortfolio(userId, selectedScenario.id)
     } catch {

@@ -18,8 +18,8 @@ const DEPENDENT_OPTIONS = [0, 1, 2, 3, 4, 5] as const
 // values match onboarding's step-personal.tsx employment type ids
 const EMPLOYMENT_TYPES = [
   { value: "salaried", label: "Salaried" },
-  { value: "freelancer", label: "Freelancer" },
-  { value: "business", label: "Business" },
+  { value: "freelancer", label: "Freelancer/Consultant" },
+  { value: "business", label: "Business Owner" },
   { value: "student", label: "Student" },
 ]
 
@@ -341,25 +341,6 @@ export default function SettingsPage() {
                 </select>
               </div>
               <div>
-                <label className="text-sm text-gray-500 mb-2 block">Risk Tolerance</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {RISK_LEVELS.map((level, i) => (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => setRiskTolerance(i + 1)}
-                      className={`py-2 px-1 rounded-xl text-xs font-medium border transition-colors ${
-                        riskTolerance === i + 1
-                          ? "bg-[#3B5BDB] text-white border-[#3B5BDB]"
-                          : "bg-white text-gray-500 border-gray-200 hover:border-[#3B5BDB]"
-                      }`}
-                    >
-                      {level}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
                 <label className="text-sm text-gray-500 mb-2 block">Time Horizon</label>
                 <div className="flex flex-wrap gap-2">
                   {TIME_HORIZONS.map((horizon) => (
@@ -374,6 +355,25 @@ export default function SettingsPage() {
                       }`}
                     >
                       {horizon.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-gray-500 mb-2 block">Risk Tolerance</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {RISK_LEVELS.map((level, i) => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => setRiskTolerance(i + 1)}
+                      className={`py-2 px-1 rounded-xl text-xs font-medium border transition-colors ${
+                        riskTolerance === i + 1
+                          ? "bg-[#3B5BDB] text-white border-[#3B5BDB]"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-[#3B5BDB]"
+                      }`}
+                    >
+                      {level}
                     </button>
                   ))}
                 </div>

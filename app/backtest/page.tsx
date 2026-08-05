@@ -13,21 +13,20 @@ const STOCK_TICKERS: Record<string, string> = {
 }
 const STOCK_NAMES = Object.keys(STOCK_TICKERS)
 
-const TIME_PERIODS = ["1 Year", "3 Years", "5 Years", "10 Years"]
+const TIME_PERIODS = ["1 Year", "3 Years"]
 const AVAILABLE_STRATEGIES = ["SIP (Monthly Investment)", "Buy and Hold"]
 
 const DATA_START = new Date("2022-01-01")
 
 const CURRENT_YEAR = new Date().getFullYear()
 
-// Only "1 Year"/"3 Years" get an explicit year range shown -- the option's
-// underlying value stays the plain period string (getDateRange/getSipTradeCount
-// switch on it), this only changes the label the user sees.
-const formatPeriodLabel = (period: string) => {
-  if (period === "1 Year") return `1 Year (${CURRENT_YEAR - 1}–${CURRENT_YEAR})`
-  if (period === "3 Years") return `3 Years (${CURRENT_YEAR - 3}–${CURRENT_YEAR})`
-  return period
-}
+// The option's underlying value stays the plain period string
+// (getDateRange/getSipTradeCount switch on it), this only changes the
+// label the user sees.
+const formatPeriodLabel = (period: string) =>
+  period === "1 Year"
+    ? `1 Year (${CURRENT_YEAR - 1}–${CURRENT_YEAR})`
+    : `3 Years (${CURRENT_YEAR - 3}–${CURRENT_YEAR})`
 
 interface TradeOut {
   ticker: string
@@ -86,7 +85,7 @@ const formatSignedPct = (value: number) => `${value >= 0 ? "+" : ""}${value.toFi
 
 const getDateRange = (period: string) => {
   const today = new Date()
-  const years = period === "1 Year" ? 1 : period === "3 Years" ? 3 : period === "5 Years" ? 5 : 10
+  const years = period === "1 Year" ? 1 : 3
   const start = new Date(today)
   start.setFullYear(today.getFullYear() - years)
   return { start: start < DATA_START ? new Date(DATA_START) : start, end: today }
@@ -94,9 +93,7 @@ const getDateRange = (period: string) => {
 
 const getSipTradeCount = (period: string) => {
   if (period === "1 Year") return 12
-  if (period === "3 Years") return 36
-  if (period === "5 Years") return 60
-  return 120 // 10 Years
+  return 36 // 3 Years
 }
 
 const buildYearlyBreakdown = (
@@ -283,7 +280,7 @@ export default function BacktestPage() {
                     ))}
                   </select>
                   <p className="text-xs text-gray-400 mt-1">
-                    Historical data covers January 2022 to present · NSE stocks only
+                    Historical data covers January 2022 to present
                   </p>
                 </div>
 

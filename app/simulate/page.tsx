@@ -20,44 +20,6 @@ interface MarketPrice {
   price: number
   change_pct: number
   name: string
-  period?: string
-}
-
-interface MarketScenario {
-  id: string
-  name: string
-  difficulty: string
-  description: string
-  context: string
-  start_date: string
-  end_date: string
-  hint: string
-  color: string
-  badge_text?: string
-}
-
-// Frontend-only "scenario" -- start_date/end_date are unused placeholders
-// since Live mode computes its date range dynamically (1 year ago to today)
-// rather than using a fixed historical window like the other 4.
-const LIVE_SCENARIO: MarketScenario = {
-  id: "live",
-  name: "Live Simulation",
-  difficulty: "Live",
-  description: "Most recent 12 months of real NSE market data",
-  context: "Uses actual historical prices from the past 12 months stored in our database. Market Watch shows 15-minute delayed live prices during market hours. Simulation runs against stored daily closing prices.",
-  start_date: "",
-  end_date: "",
-  hint: "Most current data available — reflects recent real market conditions",
-  color: "blue",
-  badge_text: "LIVE",
-}
-
-const SCENARIO_COLOR_CLASSES: Record<string, { badge: string; border: string; banner: string }> = {
-  green: { badge: "bg-green-100 text-green-700", border: "border-green-500 bg-green-50", banner: "bg-green-50 border-green-200 text-green-900" },
-  yellow: { badge: "bg-yellow-100 text-yellow-700", border: "border-yellow-500 bg-yellow-50", banner: "bg-yellow-50 border-yellow-200 text-yellow-900" },
-  red: { badge: "bg-red-100 text-red-700", border: "border-red-500 bg-red-50", banner: "bg-red-50 border-red-200 text-red-900" },
-  purple: { badge: "bg-purple-100 text-purple-700", border: "border-purple-500 bg-purple-50", banner: "bg-purple-50 border-purple-200 text-purple-900" },
-  blue: { badge: "bg-blue-100 text-blue-700", border: "border-blue-500 bg-blue-50", banner: "bg-blue-50 border-blue-200 text-blue-900" },
 }
 
 interface BenchmarkMetrics {
@@ -95,7 +57,15 @@ interface ScenarioPortfolio {
   overall_return_pct: number
 }
 
-const formatDate = (date: Date) => date.toISOString().slice(0, 10)
+// This page only ever simulates against the live scenario (most recent 12
+// months of real NSE data) -- "live" is the scenario_id the backend uses to
+// scope cash/holdings for it.
+const SCENARIO_ID = "live"
+
+// API wants YYYY-MM-DD; the info banner wants a human-readable date.
+const formatApiDate = (date: Date) => date.toISOString().slice(0, 10)
+const formatDate = (d: Date) =>
+  d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
 
 export default function SimulatePage() {
   const [userId, setUserId] = useState<string | null>(null)
@@ -106,9 +76,6 @@ export default function SimulatePage() {
   const [result, setResult] = useState<SimulationResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [marketPrices, setMarketPrices] = useState<Record<string, MarketPrice> | null>(null)
-  const [scenarios, setScenarios] = useState<MarketScenario[]>([])
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>("live")
-  const [resultScenarioName, setResultScenarioName] = useState<string | null>(null)
   const [scenarioPortfolio, setScenarioPortfolio] = useState<ScenarioPortfolio | null>(null)
   const [balanceInput, setBalanceInput] = useState("100000")
   const [isSettingBalance, setIsSettingBalance] = useState(false)
@@ -117,6 +84,13 @@ export default function SimulatePage() {
   // (S&P 500) is offered as the global alternative.
   const [benchmarkTicker, setBenchmarkTicker] = useState<"SPY" | "NIFTYBEES.NS">("NIFTYBEES.NS")
 
+  // The past 12 months, computed fresh each render -- shown in the info
+  // banner below and reused as the simulation's actual date range so the
+  // two never drift apart.
+  const endDate = new Date()
+  const startDate = new Date(endDate)
+  startDate.setFullYear(endDate.getFullYear() - 1)
+
   useEffect(() => {
     const storedUserId = localStorage.getItem("finsight_user_id")
     if (storedUserId) {
@@ -124,20 +98,12 @@ export default function SimulatePage() {
     } else {
       setError("Please complete onboarding before simulating trades.")
     }
-    loadScenarios()
+    loadMarketPrices()
   }, [])
 
-  // Live mode uses today's (delayed) prices; a historical scenario uses
-  // average-of-period prices instead -- re-fetch whenever the selection
-  // changes so Market Watch and the trade form's Current Price stay in sync.
-  const loadMarketData = async (scenario: MarketScenario) => {
+  const loadMarketPrices = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL
-      const url =
-        scenario.id === "live"
-          ? `${apiUrl}/market/prices`
-          : `${apiUrl}/market/historical-prices?start_date=${scenario.start_date}&end_date=${scenario.end_date}`
-      const res = await fetch(url)
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/market/prices`)
       if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
       setMarketPrices(await res.json())
     } catch {
@@ -147,21 +113,9 @@ export default function SimulatePage() {
     }
   }
 
-  const loadScenarios = async () => {
+  const loadScenarioPortfolio = async (uid: string) => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/market/scenarios`)
-      if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
-      setScenarios(await res.json())
-    } catch {
-      // Leave scenarios empty -- only the Live card renders, which is
-      // already the default selection.
-      setScenarios([])
-    }
-  }
-
-  const loadScenarioPortfolio = async (uid: string, scenarioId: string) => {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${uid}/scenario/${scenarioId}/portfolio`)
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${uid}/scenario/${SCENARIO_ID}/portfolio`)
       if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
       const data: ScenarioPortfolio = await res.json()
       setScenarioPortfolio(data)
@@ -174,18 +128,10 @@ export default function SimulatePage() {
   const availableCash = scenarioPortfolio?.virtual_cash ?? 0
   const totalInvested = scenarioPortfolio?.total_invested ?? 0
 
-  const allScenarios = [LIVE_SCENARIO, ...scenarios]
-  const selectedScenario = allScenarios.find((s) => s.id === selectedScenarioId) ?? LIVE_SCENARIO
-  const isLiveMode = selectedScenario.id === "live"
-
-  useEffect(() => {
-    loadMarketData(selectedScenario)
-  }, [selectedScenario.id, selectedScenario.start_date, selectedScenario.end_date])
-
   useEffect(() => {
     if (!userId) return
-    loadScenarioPortfolio(userId, selectedScenario.id)
-  }, [userId, selectedScenario.id])
+    loadScenarioPortfolio(userId)
+  }, [userId])
 
   const handleSetBalance = async () => {
     if (!userId) return
@@ -199,7 +145,7 @@ export default function SimulatePage() {
     setIsSettingBalance(true)
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/scenario/${selectedScenario.id}/set-balance`,
+        `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/scenario/${SCENARIO_ID}/set-balance`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -218,21 +164,20 @@ export default function SimulatePage() {
     }
   }
 
-  const handleResetScenario = async () => {
+  const handleResetSimulation = async () => {
     if (!userId) return
-    if (!window.confirm("Reset this scenario? All trades will be cleared and balance restored.")) return
+    if (!window.confirm("Reset your simulation? All trades will be cleared and balance restored.")) return
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/scenario/${selectedScenario.id}/reset`,
+        `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/scenario/${SCENARIO_ID}/reset`,
         { method: "POST" }
       )
       if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
-      await loadScenarioPortfolio(userId, selectedScenario.id)
+      await loadScenarioPortfolio(userId)
       setResult(null)
-      setResultScenarioName(null)
     } catch {
-      setError("Something went wrong resetting this scenario. Please try again.")
+      setError("Something went wrong resetting your simulation. Please try again.")
     }
   }
 
@@ -265,17 +210,7 @@ export default function SimulatePage() {
     setResult(null)
 
     try {
-      let simStart: Date
-      let simEnd: Date
-      if (isLiveMode) {
-        simEnd = new Date()
-        simStart = new Date(simEnd)
-        simStart.setFullYear(simEnd.getFullYear() - 1)
-      } else {
-        simStart = new Date(selectedScenario.start_date)
-        simEnd = new Date(selectedScenario.end_date)
-      }
-      const tradeDate = new Date(simStart.getTime() + 3 * 24 * 60 * 60 * 1000)
+      const tradeDate = new Date(startDate.getTime() + 3 * 24 * 60 * 60 * 1000)
 
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/simulate/sandbox`,
@@ -284,19 +219,19 @@ export default function SimulatePage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             tickers: [selectedStock],
-            start_date: formatDate(simStart),
-            end_date: formatDate(simEnd),
+            start_date: formatApiDate(startDate),
+            end_date: formatApiDate(endDate),
             starting_cash: scenarioPortfolio.virtual_cash,
             trades: [
               {
                 ticker: selectedStock,
                 action,
                 quantity,
-                trade_date: formatDate(tradeDate),
+                trade_date: formatApiDate(tradeDate),
               },
             ],
             benchmark_ticker: benchmarkTicker,
-            scenario_id: selectedScenario.id,
+            scenario_id: SCENARIO_ID,
           }),
         }
       )
@@ -317,8 +252,7 @@ export default function SimulatePage() {
         }).catch(() => {})  // fire and forget, don't block UI
       }
 
-      setResultScenarioName(isLiveMode ? null : selectedScenario.name)
-      await loadScenarioPortfolio(userId, selectedScenario.id)
+      await loadScenarioPortfolio(userId)
     } catch {
       setError("Something went wrong while running your simulation. Please try again.")
     } finally {
@@ -336,12 +270,16 @@ export default function SimulatePage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Simulate a Trade</h1>
             <p className="text-gray-500 mt-1">Test investment strategies against historical market data — see what would have worked</p>
+            <p className="text-sm text-gray-500 mt-2">
+              Using real NSE market data from {formatDate(startDate)} to {formatDate(endDate)}
+              {" "}· Prices sourced from Yahoo Finance
+            </p>
           </div>
 
           {/* Virtual Cash Banner */}
           <div className="bg-[#3B5BDB] text-white rounded-2xl p-5 mb-8 flex items-center justify-between">
             <div>
-              <p className="text-blue-200 text-sm">{selectedScenario.name} Balance</p>
+              <p className="text-blue-200 text-sm">Live Simulation Balance</p>
               <p className="text-3xl font-bold mt-1">₹{availableCash.toLocaleString()}</p>
               {scenarioPortfolio && (
                 <p className="text-blue-200 text-xs mt-1">
@@ -355,53 +293,6 @@ export default function SimulatePage() {
             </div>
           </div>
 
-          {/* Market Scenarios */}
-          <div className="mb-8">
-            <h2 className="font-semibold text-gray-900 mb-1">Market Scenario</h2>
-            <p className="text-xs text-gray-400 mb-4">
-              {isLiveMode ? "Practicing with real current market data" : "Practicing against a historical market period"}
-            </p>
-
-            <div className="flex gap-4 overflow-x-auto pb-2 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
-              {allScenarios.map((scenario) => {
-                const colors = SCENARIO_COLOR_CLASSES[scenario.color] ?? SCENARIO_COLOR_CLASSES.green
-                const isSelected = scenario.id === selectedScenarioId
-                return (
-                  <button
-                    key={scenario.id}
-                    type="button"
-                    onClick={() => setSelectedScenarioId(scenario.id)}
-                    className={`min-w-[240px] shrink-0 text-left rounded-2xl border-2 p-4 transition-colors sm:min-w-0 sm:shrink ${
-                      isSelected ? colors.border : "border-transparent bg-white hover:border-gray-200"
-                    }`}
-                  >
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${colors.badge}`}>
-                      {scenario.badge_text ?? scenario.difficulty}
-                    </span>
-                    <p className="mt-2 text-sm font-semibold text-gray-900">{scenario.name}</p>
-                    <p className="mt-1 text-xs text-gray-500">{scenario.description}</p>
-                    <p className="mt-2 text-xs italic text-gray-400">{scenario.hint}</p>
-                  </button>
-                )
-              })}
-            </div>
-
-            {isLiveMode ? (
-              <div className={`mt-4 flex items-center gap-2 rounded-xl border p-4 text-sm ${SCENARIO_COLOR_CLASSES.blue.banner}`}>
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
-                </span>
-                <span className="font-medium">Live Simulation</span>
-                <span>— Using real market data from the past 12 months</span>
-              </div>
-            ) : (
-              <div className={`mt-4 rounded-xl border p-4 text-sm ${SCENARIO_COLOR_CLASSES[selectedScenario.color]?.banner ?? SCENARIO_COLOR_CLASSES.green.banner}`}>
-                {selectedScenario.context}
-              </div>
-            )}
-          </div>
-
           <div className="grid grid-cols-2 gap-8">
 
             {/* Trade Form + Results */}
@@ -409,7 +300,7 @@ export default function SimulatePage() {
               {scenarioPortfolio && !scenarioPortfolio.is_started && (
                 <div className="bg-white rounded-2xl shadow-sm p-6">
                   <h2 className="font-semibold text-gray-900 mb-1">
-                    Set your starting balance for this scenario
+                    Set your starting balance
                   </h2>
                   <div className="flex gap-3 mt-3">
                     <div className="relative flex-1">
@@ -439,9 +330,6 @@ export default function SimulatePage() {
                   )}
                   <p className="text-xs text-gray-400 mt-3">
                     This cannot be changed once you make your first trade.
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1 italic">
-                    Tip: Use the same balance across scenarios to compare performance fairly.
                   </p>
                 </div>
               )}
@@ -502,9 +390,7 @@ export default function SimulatePage() {
 
                   <div className="bg-gray-50 rounded-xl p-4">
                     <div className="flex justify-between text-sm mb-2">
-                      <span className="text-gray-500">
-                        {isLiveMode ? "Current Price" : "Price at Start of Period"}
-                      </span>
+                      <span className="text-gray-500">Current Price</span>
                       <span className="font-medium text-gray-900">₹{currentPrice.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-sm mb-2">
@@ -563,9 +449,7 @@ export default function SimulatePage() {
 
               {result && (
                 <div className="bg-white rounded-2xl shadow-sm p-6">
-                  <h2 className="font-semibold text-gray-900 mb-5">
-                    Simulation Results{resultScenarioName ? ` — ${resultScenarioName}` : ""}
-                  </h2>
+                  <h2 className="font-semibold text-gray-900 mb-5">Simulation Results</h2>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-gray-50 rounded-xl p-4">
                       <p className="text-xs text-gray-500">Final Portfolio Value</p>
@@ -613,10 +497,10 @@ export default function SimulatePage() {
 
                   <button
                     type="button"
-                    onClick={handleResetScenario}
+                    onClick={handleResetSimulation}
                     className="mt-4 w-full text-sm font-medium text-red-500 hover:text-red-600 text-center"
                   >
-                    Reset this scenario
+                    Reset simulation
                   </button>
                 </div>
               )}
@@ -625,11 +509,7 @@ export default function SimulatePage() {
             {/* Market Watch */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <h2 className="font-semibold text-gray-900">Market Watch</h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {isLiveMode
-                  ? "Delayed 15 min"
-                  : `Period Return${marketPrices ? ` · ${Object.values(marketPrices)[0]?.period ?? ""}` : ""}`}
-              </p>
+              <p className="text-xs text-gray-400 mt-0.5">Delayed 15 min</p>
               <div className="space-y-3 mt-5">
                 {MARKET_STOCKS.map((stock) => {
                   const live = marketPrices?.[stock.ticker]

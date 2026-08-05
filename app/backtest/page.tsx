@@ -18,6 +18,17 @@ const AVAILABLE_STRATEGIES = ["SIP (Monthly Investment)", "Buy and Hold"]
 
 const DATA_START = new Date("2022-01-01")
 
+const CURRENT_YEAR = new Date().getFullYear()
+
+// Only "1 Year"/"3 Years" get an explicit year range shown -- the option's
+// underlying value stays the plain period string (getDateRange/getSipTradeCount
+// switch on it), this only changes the label the user sees.
+const formatPeriodLabel = (period: string) => {
+  if (period === "1 Year") return `1 Year (${CURRENT_YEAR - 1}–${CURRENT_YEAR})`
+  if (period === "3 Years") return `3 Years (${CURRENT_YEAR - 3}–${CURRENT_YEAR})`
+  return period
+}
+
 interface TradeOut {
   ticker: string
   action: "buy" | "sell"
@@ -268,9 +279,12 @@ export default function BacktestPage() {
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-[#FAF7F0] focus:outline-none focus:ring-2 focus:ring-[#3B5BDB]"
                   >
                     {TIME_PERIODS.map((period) => (
-                      <option key={period}>{period}</option>
+                      <option key={period} value={period}>{formatPeriodLabel(period)}</option>
                     ))}
                   </select>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Historical data covers January 2022 to present · NSE stocks only
+                  </p>
                 </div>
 
                 <div>

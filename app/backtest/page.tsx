@@ -120,12 +120,17 @@ const buildYearlyBreakdown = (
         .filter((t) => t.action === "buy" && new Date(t.trade_date) <= yearEnd)
         .reduce((sum, t) => sum + t.cost, 0)
 
+      // totalValue is the full portfolio value (cash + holdings) at
+      // year-end, same basis as the Final Value summary card -- so the
+      // last row here always reconciles with that card. Return % still
+      // measures performance on capital actually deployed (holdings vs.
+      // cash spent), so idle cash doesn't dilute/inflate it.
       const totalValue = lastValueByYear.get(year) ?? 0
       const idleCash = totalStartingCash - cashSpent
       const holdingsValue = totalValue - idleCash
       const returnPct = cashSpent > 0 ? ((holdingsValue - cashSpent) / cashSpent) * 100 : 0
 
-      return { year, invested: cashSpent, value: holdingsValue, returnPct }
+      return { year, invested: cashSpent, value: totalValue, returnPct }
     })
 }
 

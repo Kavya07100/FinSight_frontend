@@ -183,7 +183,10 @@ export default function BacktestPage() {
           tradeDate.setDate(tradeDate.getDate() + n * 30)
           return { ticker, action: "buy" as const, quantity: 1, trade_date: formatDate(tradeDate) }
         })
-        startingCash = initialInvestment * numTrades
+        // The initial investment IS the total SIP capital, not a
+        // per-month amount -- don't multiply by the trade count or
+        // starting_cash gets inflated by numTrades×.
+        startingCash = initialInvestment
       }
 
       const res = await fetch(
@@ -197,7 +200,7 @@ export default function BacktestPage() {
             end_date: formatDate(end),
             starting_cash: startingCash,
             trades,
-            benchmark_ticker: "SPY",
+            benchmark_ticker: STOCK_TICKERS["Nifty 50"],
           }),
         }
       )
@@ -336,7 +339,7 @@ export default function BacktestPage() {
                     color: "text-red-500",
                   },
                   {
-                    label: "vs SPY",
+                    label: "vs Nifty 50",
                     value: result?.metrics.benchmark
                       ? formatSignedPct(result.metrics.benchmark.total_return_pct)
                       : "—",

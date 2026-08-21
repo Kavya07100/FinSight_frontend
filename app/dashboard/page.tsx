@@ -19,6 +19,13 @@ interface StrategyModule {
   xp?: number | null
 }
 
+interface Holding {
+  ticker: string
+  company_name: string | null
+  quantity: number
+  avg_buy_price: number
+}
+
 export default function DashboardPage() {
   const [firstName, setFirstName] = useState<string | undefined>(undefined)
   const [portfolioValue, setPortfolioValue] = useState<number>(0)
@@ -26,6 +33,7 @@ export default function DashboardPage() {
   const [riskCategory, setRiskCategory] = useState<string | null>(null)
   const [totalXp, setTotalXp] = useState<number | null>(null)
   const [dailyValues, setDailyValues] = useState<DailyValue[]>([])
+  const [holdings, setHoldings] = useState<Holding[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -84,9 +92,11 @@ export default function DashboardPage() {
       const totalValue = portfolio.total_value ?? 0
       setPortfolioValue(totalValue)
       setHasHoldings(totalValue > 0)
+      setHoldings(portfolio.holdings ?? [])
     } else {
       setPortfolioValue(0)
       setHasHoldings(false)
+      setHoldings([])
     }
 
     setIsLoading(false)
@@ -107,7 +117,7 @@ export default function DashboardPage() {
           />
           <FinancialPulse riskCategory={riskCategory} />
           <div className="grid gap-6 lg:grid-cols-2">
-            <AllocationChart />
+            <AllocationChart holdings={holdings} />
             <PerformanceChart dailyValues={dailyValues} />
           </div>
           <MarketNews />

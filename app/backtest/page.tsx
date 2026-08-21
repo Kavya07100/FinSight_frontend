@@ -4,6 +4,147 @@ import { useEffect, useState } from "react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { Sidebar } from "@/components/dashboard/sidebar"
 
+const BACKTEST_ANALYSIS: Record<string, Record<string, Record<string, {
+  factual: string,
+  behavioral: string,
+  verdict: string
+}>>> = {
+  "Nifty 50": {
+    "1 Year": {
+      "SIP (Monthly Investment)": {
+        factual: "Nifty 50 delivered modest returns in 2025-26 as FII outflows and global uncertainty from US tariff policies weighed on Indian large-caps. Defensive sectors like FMCG and pharma outperformed cyclicals. The index remained range-bound for much of 2025 before a recovery in early 2026.",
+        behavioral: "SIP into Nifty 50 is India's most recommended strategy for retail investors. By investing ₹833 every month regardless of price, you bought more units when prices were low and fewer when high — rupee cost averaging in action. The modest return reflects the market environment, not the strategy's weakness.",
+        verdict: "Nifty 50 SIP remains the most reliable long-term strategy for retail investors. One year is too short to judge — this strategy rewards patience over 5+ years."
+      },
+      "Buy and Hold": {
+        factual: "Buying Nifty 50 (NIFTYBEES) at the start of 2025 and holding through 2026 exposed you to the full range of market movements. The 2025 market faced headwinds from global slowdown fears and FII selling before recovering.",
+        behavioral: "Buy and Hold requires conviction to sit through volatility. The 1-year period tested investor patience. Those who checked their portfolio daily likely felt pressure to sell during dips — this is exactly the emotional discipline that separates successful long-term investors.",
+        verdict: "For a 1-year horizon, Buy and Hold of Nifty 50 is straightforward. Over 10+ years, this strategy has historically returned 12-15% annually in India."
+      }
+    },
+    "3 Years": {
+      "SIP (Monthly Investment)": {
+        factual: "The 2023-26 period included the 2022 recovery, strong bull runs in 2023 and 2024, and mixed conditions in 2025. Nifty 50 crossed 25,000 for the first time in 2024, driven by strong domestic consumption, FII inflows returning after 2022 outflows, and India's GDP growth outpacing global peers.",
+        behavioral: "A 3-year SIP demonstrates rupee cost averaging at its best — you bought Nifty units cheaply during 2023 dips and through the 2024 rally. This period rewards the investor who invested consistently without trying to time the market.",
+        verdict: "3-year Nifty SIP is the textbook case for why systematic investing beats market timing for retail investors. The data confirms AMFI and SEBI's recommendation."
+      },
+      "Buy and Hold": {
+        factual: "Buying Nifty 50 in August 2023 and holding to 2026 captured the 2023-24 bull market that took Sensex from 65,000 to 85,000. India became one of the world's best-performing major markets during this period, driven by strong earnings growth and geopolitical tailwinds.",
+        behavioral: "The 3-year Buy and Hold investor who didn't panic during 2024's brief corrections was rewarded significantly. This period illustrates why long-term conviction in quality indices pays off — the investor who stayed invested outperformed the one who tried to time exits.",
+        verdict: "Buy and Hold of Nifty 50 over 3 years validates the index investing thesis for India. The key lesson: time in the market beats timing the market."
+      }
+    }
+  },
+  "Reliance Industries": {
+    "1 Year": {
+      "SIP (Monthly Investment)": {
+        factual: "Reliance Industries in 2025-26 faced mixed signals — Jio's 5G expansion continued while retail and O2C (Oil to Chemicals) segments faced margin pressure from global crude volatility. The stock consolidated after reaching all-time highs in 2024.",
+        behavioral: "SIP into a single large-cap stock concentrates risk significantly compared to an index. Your HHI (portfolio concentration index) would be 1.0 — maximum concentration. Reliance is India's largest company but single-stock SIP lacks the diversification protection of index investing.",
+        verdict: "Reliance is a quality business but single-stock SIP carries concentration risk. Consider diversifying across 4-5 sectors rather than one company."
+      },
+      "Buy and Hold": {
+        factual: "Reliance Industries stock movement in 2025-26 was influenced by quarterly earnings, crude oil prices, Jio subscriber growth, and retail expansion. The conglomerate's performance reflects both energy sector dynamics and India's consumption story.",
+        behavioral: "Holding a single stock through a year requires significantly more conviction than holding an index. Every quarterly result, news headline, and analyst report tests your resolve. This is why diversification exists — to reduce the emotional burden of single-stock investing.",
+        verdict: "Reliance Buy and Hold is suitable for investors who understand the business deeply. For beginners, Nifty 50 provides Reliance exposure with diversification."
+      }
+    },
+    "3 Years": {
+      "SIP (Monthly Investment)": {
+        factual: "Reliance Industries 2023-26 saw the completion of 5G rollout for Jio, continued retail expansion with JioMart, and strategic moves in new energy (solar, green hydrogen). The stock reflected India's largest conglomerate navigating multiple business transformations simultaneously.",
+        behavioral: "A 3-year SIP into Reliance captures multiple business cycles. The stock's volatility — driven by crude prices, regulatory changes, and quarterly results — tests the SIP investor's discipline to continue investing through both peaks and troughs.",
+        verdict: "3-year Reliance SIP reflects the long-term growth story of India's most diversified corporation. Compare against Nifty 50 to see if picking Reliance added value over the index."
+      },
+      "Buy and Hold": {
+        factual: "Reliance over 2023-26 transformed from an O2C-heavy company to a more balanced conglomerate with Jio, Retail, and New Energy contributing increasingly. This transformation story attracted significant FII interest but also meant the stock's valuation depended heavily on future earnings projections.",
+        behavioral: "A 3-year Buy and Hold investor in Reliance experienced the psychological journey of a conglomerate transformation. The patient investor who understood the business was rewarded. This illustrates why understanding what you own matters more than chart patterns.",
+        verdict: "Reliance 3-year Buy and Hold captured India's technology-retail-energy convergence story. Key learning: investing in businesses you understand reduces panic selling."
+      }
+    }
+  },
+  "HDFC Bank": {
+    "1 Year": {
+      "SIP (Monthly Investment)": {
+        factual: "HDFC Bank in 2025-26 continued its post-merger integration with HDFC Ltd. The bank focused on deposit mobilization, reducing its loan-to-deposit ratio, and improving net interest margins. The banking sector faced headwinds from RBI's tighter liquidity management.",
+        behavioral: "Banking stocks are sensitive to RBI policy decisions and credit cycles. SIP into HDFC Bank means buying through both RBI rate hike and cut cycles. The investor who stayed committed to monthly SIP despite banking sector news headlines demonstrates the discipline that long-term wealth building requires.",
+        verdict: "HDFC Bank is India's most respected private bank with consistent return on equity above 16%. 1-year SIP captures near-term dynamics but misses the long-term compounding story."
+      },
+      "Buy and Hold": {
+        factual: "HDFC Bank's 2025-26 performance was shaped by credit growth rates, NIM (net interest margin) trends, and the ongoing merger integration. The bank's conservative lending practices meant lower growth but higher quality loan books compared to peers.",
+        behavioral: "HDFC Bank is considered a 'boring but reliable' stock in India — it rarely excites but rarely disappoints over long periods. Buy and Hold here tests whether you can resist switching to more exciting stocks when neighbors brag about 30% returns from newer growth companies.",
+        verdict: "HDFC Bank Buy and Hold rewards patience. The bank's consistent dividend and steady earnings growth make it suitable for conservative investors. Compare its return to Nifty 50 for the true value of stock picking."
+      }
+    },
+    "3 Years": {
+      "SIP (Monthly Investment)": {
+        factual: "2023-26 was transformative for HDFC Bank — the merger with HDFC Ltd completed in 2023 created India's largest private sector bank by assets. Integration challenges temporarily pressured the stock in 2023-24 before the market recognized the merged entity's earnings potential in 2025-26.",
+        behavioral: "The 3-year SIP investor who continued buying HDFC Bank through the post-merger uncertainty and stock underperformance in 2023-24 was rewarded as the integration narrative cleared. This is the classic behavioral finance lesson: patient investors who maintain conviction through short-term noise capture long-term value.",
+        verdict: "3-year HDFC Bank SIP captured one of India's most significant banking mergers. The investor who stayed invested through the uncertainty period demonstrates the behavioral discipline that separates wealth creators from wealth destroyers."
+      },
+      "Buy and Hold": {
+        factual: "Buying HDFC Bank at the start of 2023 and holding through 2026 meant experiencing the post-merger volatility, eventual integration success, and the bank's emergence as an even more formidable institution. The merger created significant one-time costs but positioned the bank for superior long-term profitability.",
+        behavioral: "HDFC Bank's 3-year journey tested the Buy and Hold investor's conviction through genuine uncertainty — a major merger with integration risks, regulatory scrutiny, and temporary underperformance versus peers. Those who understood the long-term thesis held. Those focused on short-term price action sold — often at the wrong time.",
+        verdict: "HDFC Bank 3-year Buy and Hold is a case study in how understanding business fundamentals enables conviction through short-term volatility."
+      }
+    }
+  },
+  "Infosys": {
+    "1 Year": {
+      "SIP (Monthly Investment)": {
+        factual: "Infosys in 2025-26 navigated the global IT spending slowdown as US and European enterprise clients reduced discretionary tech budgets amid economic uncertainty. Revenue growth moderated but margins improved as the company right-sized workforce and focused on AI-led service offerings.",
+        behavioral: "IT stocks are highly sensitive to global macroeconomic conditions — specifically US GDP growth and enterprise tech spending. SIP into Infosys exposes you to currency risk (dollar-rupee), US recession risk, and technology cycle risk simultaneously. Diversification into non-IT sectors would have reduced this concentration.",
+        verdict: "Infosys 1-year SIP reflects global IT cycle dynamics. The stock is suitable for investors who understand that IT company revenues move with global economic cycles, not India's domestic growth story."
+      },
+      "Buy and Hold": {
+        factual: "Infosys 2025-26 was shaped by AI-driven service demand — clients wanted AI implementation, cloud migration, and data analytics, partly offsetting the broad discretionary IT slowdown. The company's investment in AI capabilities positioned it for the next growth cycle.",
+        behavioral: "Holding Infosys through US tech spending uncertainty requires understanding that IT company fundamentals are different from Indian consumer or banking stocks. The investor who sold during the slowdown likely missed the AI-driven recovery. Sector understanding drives conviction.",
+        verdict: "Infosys Buy and Hold rewards investors who understand global tech cycles and can hold through US economic uncertainty. Compare with Nifty 50 to assess whether IT sector concentration added value."
+      }
+    },
+    "3 Years": {
+      "SIP (Monthly Investment)": {
+        factual: "Infosys 2023-26 traversed a complete IT cycle — post-COVID tech spending boom ended, discretionary budgets were cut in 2023-24, and AI-driven demand created a new growth wave in 2025-26. The company maintained its industry-leading margins through efficient cost management.",
+        behavioral: "SIP through a complete IT cycle (boom, slowdown, recovery) is a masterclass in why consistent investing beats market timing. Investors who stopped SIP during the 2023-24 slowdown missed buying Infosys cheaply before the AI-demand recovery.",
+        verdict: "3-year Infosys SIP captures a complete technology cycle. The key behavioral lesson: sector cycles are unpredictable but consistent SIP eliminates the need to predict them."
+      },
+      "Buy and Hold": {
+        factual: "Buying Infosys in 2023 and holding through 2026 meant experiencing the post-COVID IT boom ending, a painful slowdown as hyperscaler capex cuts affected IT services, followed by an AI-services recovery. The 3-year period tested conviction in India's largest IT exporter.",
+        behavioral: "Infosys 3-year Buy and Hold investors faced the psychological challenge of holding through a sector-wide slowdown when peers were rotating into banking and consumer stocks. Those who maintained conviction based on Infosys's competitive position in AI services were eventually rewarded.",
+        verdict: "Infosys 3-year Buy and Hold illustrates the risk of sector concentration — IT underperformed the broader index for 18 months before recovering. Compare returns with Nifty 50 to see the true cost or benefit of sector conviction."
+      }
+    }
+  },
+  "Tata Motors": {
+    "1 Year": {
+      "SIP (Monthly Investment)": {
+        factual: "Tata Motors (TMPV.NS post-demerger) in 2025-26 reflected the performance of its commercial vehicles and electric vehicle businesses after the Jaguar Land Rover entity was separated. The EV transition and commercial vehicle cycle drove the stock's movement.",
+        behavioral: "Tata Motors is one of India's most volatile large-cap stocks — it swings dramatically with commodity prices, EV adoption rates, and export demand. SIP into volatile stocks amplifies rupee cost averaging benefits — you buy significantly more units during price crashes.",
+        verdict: "Tata Motors SIP suits investors with high risk tolerance who believe in India's EV transition story. The stock's volatility makes consistent SIP particularly powerful — dips become opportunities rather than threats."
+      },
+      "Buy and Hold": {
+        factual: "Tata Motors post-demerger focused on domestic commercial and passenger vehicles including the EV range (Nexon, Punch, Curvv). Performance was driven by EV market share gains, commercial vehicle industry cycles, and export market conditions.",
+        behavioral: "Tata Motors Buy and Hold requires the strongest conviction of any stock in this list — the company operates across multiple cyclical businesses. The investor who held through volatility was betting on the EV transition story and domestic vehicle cycle recovery simultaneously.",
+        verdict: "Tata Motors Buy and Hold is a high-conviction, high-volatility position. Suitable for investors who understand the auto sector and EV transition dynamics. Not recommended as a large portfolio concentration."
+      }
+    },
+    "3 Years": {
+      "SIP (Monthly Investment)": {
+        factual: "Tata Motors 2023-26 was one of India's most dramatic large-cap stories — the stock went through significant volatility as Jaguar Land Rover's luxury EV strategy competed globally while domestic Indian EVs gained market share. The demerger of the commercial vehicle business added another complexity layer.",
+        behavioral: "SIP into Tata Motors over 3 years delivered the ultimate test of rupee cost averaging — the stock's dramatic swings meant some months bought units at significant discounts. The investor who stayed invested through the corporate restructuring volatility benefited from averaging down during uncertainty.",
+        verdict: "3-year Tata Motors SIP is a case study in how consistent investing through corporate uncertainty can generate returns that market-timers missed by sitting on the sidelines."
+      },
+      "Buy and Hold": {
+        factual: "Buying Tata Motors in 2023 and holding through 2026 meant experiencing the JLR demerger announcement, domestic EV market share gains, competition from new EV entrants, and the commercial vehicle cycle. The 3-year period captured India's EV transition in its most critical early phase.",
+        behavioral: "Tata Motors 3-year Buy and Hold tested every behavioral bias simultaneously — loss aversion during corrections, overconfidence during rallies, and the temptation to switch to simpler investments. The investor who held based on EV transition conviction navigated all of these.",
+        verdict: "Tata Motors 3-year Buy and Hold captures India's EV transition story. High risk, potentially high reward — illustrates why understanding business narratives matters more than price charts."
+      }
+    }
+  }
+}
+
+function getAnalysis(stock: string, period: string, strategy: string) {
+  return BACKTEST_ANALYSIS[stock]?.[period]?.[strategy] || null
+}
+
 const STOCK_TICKERS: Record<string, string> = {
   "Nifty 50": "NIFTYBEES.NS",
   "Reliance Industries": "RELIANCE.NS",
@@ -230,6 +371,8 @@ export default function BacktestPage() {
     ? buildYearlyBreakdown(result.metrics.daily_values, result.metrics.executed_trades, lastStartingCash)
     : []
 
+  const analysis = result ? getAnalysis(selectedStock, timePeriod, strategy) : null
+
   return (
     <div className="flex min-h-screen bg-[#FAF7F0]">
       <Sidebar />
@@ -442,6 +585,34 @@ export default function BacktestPage() {
                   </table>
                 )}
               </div>
+
+              {/* Analysis */}
+              {analysis && (
+                <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900">What Drove These Results</h3>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-blue-700">📊 Market Context</span>
+                    </div>
+                    <p className="text-sm text-gray-700 leading-relaxed">{analysis.factual}</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-orange-700">🧠 Behavioral Insight</span>
+                    </div>
+                    <p className="text-sm text-gray-700 leading-relaxed">{analysis.behavioral}</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-green-700">✅ Verdict</span>
+                    </div>
+                    <p className="text-sm text-gray-700 leading-relaxed font-medium">{analysis.verdict}</p>
+                  </div>
+                </div>
+              )}
 
             </div>
           </div>

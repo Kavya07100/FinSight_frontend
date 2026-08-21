@@ -44,6 +44,7 @@ interface ModuleContent {
   article_content: string
   article_summary: string[]
   difficulty: string
+  module_step: number
   quiz_questions: QuizQuestion[]
 }
 
@@ -208,7 +209,7 @@ export default function LearningPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           module_name: selectedModule.module_name,
-          module_step: 1, // Emergency Fund Building is always step 1 for now
+          module_step: selectedModule.module_step,
           answers: quizAnswers,
         }),
       })

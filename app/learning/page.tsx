@@ -70,9 +70,11 @@ interface UserProgress {
 
 type View = "list" | "article" | "quiz" | "results"
 
-// Modules that have article + quiz content seeded in the DB. Used to show
-// an "Article available" vs "Coming soon" indicator on the list view.
-const MODULES_WITH_CONTENT = [
+// Canonical module order -- matches MODULES_ORDER in the backend's main.py
+// and GET /learning/modules/{module_name}'s module_step. Doubles as the
+// "has content seeded" list (all 8 do) for the list view's "Article
+// available" badge, and as the lookup table for "Next Module" navigation.
+const MODULES_ORDER = [
   "Emergency Fund Building",
   "SIP and Rupee Cost Averaging",
   "What is a Mutual Fund?",
@@ -240,10 +242,49 @@ export default function LearningPage() {
   const backToList = () => {
     setView("list")
     setSelectedModule(null)
+    setQuizResults(null)
+    setQuizAnswers({})
     const userId = localStorage.getItem("finsight_user_id")
     if (userId) {
       loadStrategy(userId)
-      loadProgress(userId)
+      loadProgress(userId) // refreshes completed-step checkmarks
+    }
+  }
+
+  const handleNextModule = async () => {
+    if (!selectedModule) return
+    const currentStep = selectedModule.module_step // 1-indexed
+    if (currentStep >= MODULES_ORDER.length) {
+      // All modules complete
+      setView("list")
+      setSelectedModule(null)
+      setQuizResults(null)
+      setQuizAnswers({})
+      return
+    }
+    const nextModuleName = MODULES_ORDER[currentStep] // currentStep is the index for NEXT
+
+    setModuleLoading(true)
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL
+      const encoded = encodeURIComponent(nextModuleName)
+      const res = await fetch(`${apiUrl}/learning/modules/${encoded}`)
+
+      if (res.ok) {
+        const data: ModuleContent = await res.json()
+        setSelectedModule(data)
+        setView("article")
+        setQuizAnswers({})
+        setQuizResults(null)
+      } else {
+        // Module not found -- go back to list
+        setView("list")
+        setSelectedModule(null)
+      }
+    } catch {
+      setView("list")
+    } finally {
+      setModuleLoading(false)
     }
   }
 
@@ -321,7 +362,7 @@ export default function LearningPage() {
                     {path.map((mod, index) => {
                       const isActive = index === 0
                       const isCompleted = userProgress.completed_steps.includes(mod.step)
-                      const hasArticle = MODULES_WITH_CONTENT.includes(mod.module)
+                      const hasArticle = MODULES_ORDER.includes(mod.module)
                       const isCardLoading = moduleLoading && loadingModuleName === mod.module
 
                       return (
@@ -440,12 +481,20 @@ export default function LearningPage() {
           {view === "results" && selectedModule && quizResults && (
             <ResultsView
               moduleName={selectedModule.module_name}
+              moduleStep={selectedModule.module_step}
               results={quizResults}
+              moduleLoading={moduleLoading}
               onBackToList={backToList}
-              onReviewArticle={() => setView("article")}
-              onTryAgain={() => {
+              onNextModule={handleNextModule}
+              onReviewArticle={() => {
+                setView("article")
+                setQuizResults(null)
                 setQuizAnswers({})
+              }}
+              onTryAgain={() => {
                 setView("quiz")
+                setQuizResults(null)
+                setQuizAnswers({})
               }}
             />
           )}
@@ -629,17 +678,26 @@ function QuizView({
 
 function ResultsView({
   moduleName,
+  moduleStep,
   results,
+  moduleLoading,
   onBackToList,
+  onNextModule,
   onReviewArticle,
   onTryAgain,
 }: {
   moduleName: string
+  moduleStep: number
   results: QuizResult
+  moduleLoading: boolean
   onBackToList: () => void
+  onNextModule: () => void
   onReviewArticle: () => void
   onTryAgain: () => void
 }) {
+  const isLastModule = moduleStep >= MODULES_ORDER.length
+  const nextModuleName = MODULES_ORDER[moduleStep] // moduleStep is 1-indexed, so this is the next module
+
   return (
     <div className="max-w-3xl mx-auto">
       <div className="bg-white rounded-2xl shadow-sm p-8 text-center mb-6">
@@ -699,23 +757,34 @@ function ResultsView({
 
       <div className="flex justify-end gap-3">
         {results.passed ? (
-          <>
+          isLastModule ? (
             <button
               type="button"
               onClick={onBackToList}
-              className="bg-white border border-gray-200 text-gray-700 font-semibold px-5 py-3 rounded-xl hover:bg-gray-50 transition-colors"
+              className="bg-[#3B5BDB] text-white font-semibold px-5 py-3 rounded-xl hover:bg-[#3B5BDB]/90 transition-colors"
             >
-              Back to Learning Path
+              🎉 All Modules Complete! Back to Learning Path
             </button>
-            <button
-              type="button"
-              disabled
-              title="Coming soon"
-              className="bg-gray-100 text-gray-400 font-semibold px-5 py-3 rounded-xl cursor-not-allowed"
-            >
-              Next Module → (Coming soon)
-            </button>
-          </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onBackToList}
+                className="bg-white border border-gray-200 text-gray-700 font-semibold px-5 py-3 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Back to Learning Path
+              </button>
+              <button
+                type="button"
+                onClick={onNextModule}
+                disabled={moduleLoading}
+                className="bg-[#3B5BDB] text-white font-semibold px-5 py-3 rounded-xl hover:bg-[#3B5BDB]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {moduleLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                Next Module: {nextModuleName} →
+              </button>
+            </>
+          )
         ) : (
           <>
             <button

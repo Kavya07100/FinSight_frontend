@@ -70,9 +70,18 @@ interface UserProgress {
 
 type View = "list" | "article" | "quiz" | "results"
 
-// The only module with content in the DB right now. Used to show an
-// "Article available" vs "Coming soon" indicator on the list view.
-const CONTENT_READY_MODULE = "Emergency Fund Building"
+// Modules that have article + quiz content seeded in the DB. Used to show
+// an "Article available" vs "Coming soon" indicator on the list view.
+const MODULES_WITH_CONTENT = [
+  "Emergency Fund Building",
+  "SIP and Rupee Cost Averaging",
+  "What is a Mutual Fund?",
+  "What is Diversification?",
+  "Risk vs Return",
+  "Index Funds",
+  "Understanding Market Volatility",
+  "When to Sell: Cutting Losses Early",
+]
 
 const NEXT_LEVEL_XP = 3000
 
@@ -312,7 +321,7 @@ export default function LearningPage() {
                     {path.map((mod, index) => {
                       const isActive = index === 0
                       const isCompleted = userProgress.completed_steps.includes(mod.step)
-                      const hasArticle = mod.module === CONTENT_READY_MODULE
+                      const hasArticle = MODULES_WITH_CONTENT.includes(mod.module)
                       const isCardLoading = moduleLoading && loadingModuleName === mod.module
 
                       return (
